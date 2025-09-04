@@ -18,6 +18,7 @@ export default function Page() {
   const [query, setQuery] = useState<TaskQuery>({ text: "", date: "", status: "" });
   const [assignOpen, setAssignOpen] = useState(false);
   const [taskForAssign, setTaskForAssign] = useState<Task | null>(null);
+  const [leftTab, setLeftTab] = useState<"tasks" | "officers">("tasks");
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -37,27 +38,38 @@ export default function Page() {
       <div className="p-4 md:p-6 grid gap-4 md:grid-cols-2">
         <div className="space-y-3 overflow-auto md:h-[calc(100vh-120px)]">
           <div className="sticky top-0 z-10 bg-background/95 backdrop-blur pb-2">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 gap-2">
               <div className="text-xs text-muted-foreground">ทั้งหมด {filtered.length} เคส</div>
+              <div className="flex items-center gap-1">
+                <button
+                  className={`px-3 py-1.5 text-xs rounded-md border ${leftTab === "tasks" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+                  onClick={() => setLeftTab("tasks")}
+                >งาน</button>
+                <button
+                  className={`px-3 py-1.5 text-xs rounded-md border ${leftTab === "officers" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+                  onClick={() => setLeftTab("officers")}
+                >เจ้าหน้าที่</button>
+              </div>
             </div>
             <Filters query={query} onChange={setQuery} />
           </div>
 
-          <TaskList
-            tasks={filtered}
-            officers={officers}
-            selectedTaskId={selectedTaskId}
-            onSelectTask={setSelectedTaskId}
-            onAssignClick={(t) => {
-              setTaskForAssign(t);
-              setAssignOpen(true);
-            }}
-          />
-
-          <div className="space-y-2 pb-10">
-            <h2 className="text-sm font-medium">เจ้าหน้าที่</h2>
-            <OfficerList officers={officers} selectedTask={selectedTask ?? null} />
-          </div>
+          {leftTab === "tasks" ? (
+            <TaskList
+              tasks={filtered}
+              officers={officers}
+              selectedTaskId={selectedTaskId}
+              onSelectTask={setSelectedTaskId}
+              onAssignClick={(t) => {
+                setTaskForAssign(t);
+                setAssignOpen(true);
+              }}
+            />
+          ) : (
+            <div className="space-y-2 pb-10">
+              <OfficerList officers={officers} selectedTask={selectedTask ?? null} />
+            </div>
+          )}
         </div>
 
         <div className="min-h-[320px] md:h-[calc(100vh-120px)]">

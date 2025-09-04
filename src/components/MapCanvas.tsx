@@ -3,7 +3,7 @@
 import React from "react";
 import type { Task, Officer } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Map, Marker, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
+import { Map, Marker, InfoWindow, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
 import { Button } from "@/components/ui/button";
 import { useTasks } from "@/store/tasks";
 
@@ -41,6 +41,7 @@ export function MapCanvas({
 
   const [showTasks, setShowTasks] = React.useState(true);
   const [showOfficers, setShowOfficers] = React.useState(true);
+  const [selectedOfficerId, setSelectedOfficerId] = React.useState<string | null>(null);
 
   const selectedTask = React.useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) || null,
@@ -191,10 +192,11 @@ export function MapCanvas({
     };
   }, [selectedTask, officers]);
 
+  // Task marker base color → orange, officer → blue/silver
   const statusColor: Record<string, string> = {
-    pending: "#f59e0b",
-    assigned: "#3b82f6",
-    in_progress: "#6366f1",
+    pending: "#f97316", // orange
+    assigned: "#fb923c",
+    in_progress: "#f59e0b",
     done: "#10b981",
     issue: "#ef4444",
   };
@@ -250,12 +252,13 @@ export function MapCanvas({
               zIndex={isChosen ? 1000 : 500}
               icon={{
                 path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-                fillColor: isChosen ? "#16a34a" : "#059669",
+                fillColor: isChosen || selectedOfficerId === o.id ? "#2563eb" : "#3b82f6",
                 fillOpacity: 1,
                 strokeColor: "#ffffff",
                 strokeWeight: 1,
-                scale: isChosen ? 6 : 5,
+                scale: isChosen || selectedOfficerId === o.id ? 7 : 5,
               }}
+              onClick={() => setSelectedOfficerId(o.id)}
             />
           );
         })}
@@ -274,7 +277,7 @@ export function MapCanvas({
                 symbolPath
                   ? {
                       path: symbolPath,
-                      fillColor: statusColor[t.status],
+                      fillColor: active ? "#ef4444" : statusColor[t.status],
                       fillOpacity: 1,
                       strokeColor: active ? "#111827" : "#ffffff",
                       strokeWeight: active ? 3 : 2,
@@ -287,6 +290,17 @@ export function MapCanvas({
         })}
 
         {/* Route is rendered via DirectionsRenderer imperatively */}
+        {/* Labels for active selections */}
+        {selectedTask && (
+          <InfoWindow position={selectedTask.coords}>
+            <div className="text-xs">ลูกค้า: <span className="font-medium">{selectedTask.patientName}</span> • กำลังเลือกอยู่</div>
+          </InfoWindow>
+        )}
+        {selectedOfficerId && (
+          <InfoWindow position={officers.find(o => o.id === selectedOfficerId)?.base} onCloseClick={() => setSelectedOfficerId(null)}>
+            <div className="text-xs">เจ้าหน้าที่: <span className="font-medium">{officers.find(o => o.id === selectedOfficerId)?.name}</span> • กำลังเลือกอยู่</div>
+          </InfoWindow>
+        )}
       </Map>
 
       {/* Overlay: selected task info */}

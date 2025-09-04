@@ -76,8 +76,38 @@ export function buildHomeVisitData() {
 
   const officers = Array.from(officersByName.values());
 
+  // Randomize officer bases near their assigned tasks (or near center) to avoid overlap
+  const allTaskCoords = tasks.map((t) => t.coords);
+  const center = allTaskCoords.length
+    ? {
+        lat:
+          allTaskCoords.reduce((s, c) => s + c.lat, 0) / allTaskCoords.length,
+        lng:
+          allTaskCoords.reduce((s, c) => s + c.lng, 0) / allTaskCoords.length,
+      }
+    : LAB_BASE;
+
+  function jitter(base: { lat: number; lng: number }, r = 0.02) {
+    // ~0.02 deg ~ 2.2km; small random scatter
+    const rnd = (amp: number) => (Math.random() * 2 - 1) * amp;
+    return { lat: base.lat + rnd(r), lng: base.lng + rnd(r) };
+  }
+
+  officers.forEach((o) => {
+    const mine = tasks.filter((t) => t.assignedTo === o.id);
+    if (mine.length > 0) {
+      const avg = {
+        lat: mine.reduce((s, t) => s + t.coords.lat, 0) / mine.length,
+        lng: mine.reduce((s, t) => s + t.coords.lng, 0) / mine.length,
+      };
+      o.base = jitter(avg, 0.015);
+    } else {
+      // no tasks yet: scatter around center
+      o.base = jitter(center, 0.03);
+    }
+  });
+
   return { officers, tasks };
 }
 
 export const HOME_VISIT_AVAILABLE = true;
-
