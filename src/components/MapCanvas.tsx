@@ -4,6 +4,7 @@ import React from "react";
 import type { Task, Officer } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Map, AdvancedMarker, Pin, Marker, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
+import { mapStyles, type MapStyleKey } from "@/lib/mapStyles";
 import { Button } from "@/components/ui/button";
 import { useTasks } from "@/store/tasks";
 
@@ -37,7 +38,6 @@ export function MapCanvas({
   const map = useMap();
   // Load optional libraries; routes + advanced marker
   useMapsLibrary("routes");
-  const hasMapId = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAP_ID);
   const { assignTask } = useTasks();
 
   const [showTasks, setShowTasks] = React.useState(true);
@@ -76,6 +76,16 @@ export function MapCanvas({
   }> | null>(null);
   const directionsRendererRef =
     React.useRef<google.maps.DirectionsRenderer | null>(null);
+
+  const [styleKey, setStyleKey] = React.useState<MapStyleKey>("minimal");
+  const defaultMapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID;
+  const mapIdByStyle: Record<MapStyleKey, string | undefined> = {
+    minimal: process.env.NEXT_PUBLIC_GOOGLE_MAP_ID_MINIMAL,
+    clean: process.env.NEXT_PUBLIC_GOOGLE_MAP_ID_CLEAN,
+    dark: process.env.NEXT_PUBLIC_GOOGLE_MAP_ID_DARK,
+  };
+  const selectedMapId = mapIdByStyle[styleKey] || defaultMapId;
+  const hasVector = Boolean(selectedMapId);
 
   // Prepare directions renderer when map is ready
   React.useEffect(() => {
@@ -260,12 +270,17 @@ export function MapCanvas({
         gestureHandling="greedy"
         disableDefaultUI
         zoomControl
-        mapId={process.env.NEXT_PUBLIC_GOOGLE_MAP_ID}
+        mapId={selectedMapId}
+        clickableIcons={false}
+        mapTypeControl={false}
+        streetViewControl={false}
+        fullscreenControl={true}
+        styles={hasVector ? undefined : mapStyles[styleKey]}
         className="w-full h-full"
       >
         {/* Officers */}
         {showOfficers && (
-          hasMapId
+          hasVector
             ? mapOfficers.map((o) => {
                 const isChosen =
                   routeInfo?.officerId === o.id || selectedOfficerId === o.id;
@@ -317,7 +332,7 @@ export function MapCanvas({
 
         {/* Tasks */}
         {showTasks && (
-          hasMapId
+          hasVector
             ? tasks.map((t) => {
                 const active = t.id === selectedTaskId;
                 return (
@@ -481,6 +496,13 @@ export function MapCanvas({
           >
             เจ้าหน้าที่
           </Button>
+          {!hasVector && (
+            <div className="flex items-center gap-1 ml-1">
+              <Button size="sm" variant={styleKey === "minimal" ? "secondary" : "outline"} onClick={() => setStyleKey("minimal")}>Minimal</Button>
+              <Button size="sm" variant={styleKey === "clean" ? "secondary" : "outline"} onClick={() => setStyleKey("clean")}>Clean</Button>
+              <Button size="sm" variant={styleKey === "dark" ? "secondary" : "outline"} onClick={() => setStyleKey("dark")}>Dark</Button>
+            </div>
+          )}
         </div>
 
         {selectedTask && etaList && (
