@@ -3,13 +3,7 @@
 import React from "react";
 import type { Task, Officer } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import {
-  Map,
-  Marker,
-  useMapsLibrary,
-  useMap,
-  Polyline,
-} from "@vis.gl/react-google-maps";
+import { Map, Marker, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
 
 type Props = {
   tasks: Task[];
@@ -39,7 +33,8 @@ export function MapCanvas({
   }
   const mapRef = React.useRef<google.maps.Map | null>(null);
   const map = useMap();
-  const routesLib = useMapsLibrary("routes");
+  // Load optional libraries; Directions/DistanceMatrix work without specifying in most builds
+  useMapsLibrary("routes");
 
   const selectedTask = React.useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) || null,
@@ -57,62 +52,116 @@ export function MapCanvas({
     if (map) mapRef.current = map;
   }, [map]);
 
-  const [routePath, setRoutePath] = React.useState<LatLng[] | null>(null);
   const [routeInfo, setRouteInfo] = React.useState<{
     distanceText?: string;
     durationText?: string;
   } | null>(null);
+  const directionsRendererRef = React.useRef<google.maps.DirectionsRenderer | null>(null);
 
-  // Compute route when a task is selected
+  // Prepare directions renderer when map is ready
+  React.useEffect(() => {
+    if (!mapRef.current) return;
+    if (directionsRendererRef.current) return;
+    const dr = new google.maps.DirectionsRenderer({
+      map: mapRef.current,
+      suppressMarkers: true,
+      preserveViewport: true,
+      polylineOptions: {
+        strokeColor: "#2563eb",
+        strokeOpacity: 0.95,
+        strokeWeight: 5,
+      },
+    });
+    directionsRendererRef.current = dr;
+    return () => {
+      dr.setMap(null);
+      directionsRendererRef.current = null;
+    };
+  }, [map]);
+
+  // Compute nearest officer by ETA (Distance Matrix), then render directions
   React.useEffect(() => {
     let cancelled = false;
     async function calc() {
-      if (!routesLib || !selectedTask) {
-        setRoutePath(null);
+      if (!mapRef.current || !selectedTask) {
+        directionsRendererRef.current?.setDirections({ routes: [] } as any);
         setRouteInfo(null);
         return;
       }
-      // Find origin: assigned officer base or nearest officer
-      const originOfficer = (() => {
-        if (selectedTask.assignedTo)
-          return (
-            officers.find((o) => o.id === selectedTask.assignedTo) ||
-            officers[0]
-          );
-        // find nearest by straight-line distance
-        const nearest = [...officers].sort(
-          (a, b) =>
-            distance(a.base, selectedTask.coords) -
-            distance(b.base, selectedTask.coords)
-        )[0];
-        return nearest;
-      })();
 
-      const svc = new routesLib.DirectionsService();
-      const result = await svc.route({
-        origin: originOfficer?.base || { lat: 13.7563, lng: 100.5018 },
-        destination: selectedTask.coords,
-        travelMode: google.maps.TravelMode.DRIVING,
-        optimizeWaypoints: false,
-        provideRouteAlternatives: false,
-      });
-      if (cancelled) return;
-      const leg = result.routes?.[0]?.legs?.[0];
-      const path = result.routes?.[0]?.overview_path || [];
-      setRoutePath(path.map((p) => ({ lat: p.lat(), lng: p.lng() })));
-      setRouteInfo({
-        distanceText: leg?.distance?.text,
-        durationText: leg?.duration?.text,
-      });
+      let origin: LatLng | null = null;
+
+      // If already assigned, use that officer
+      if (selectedTask.assignedTo) {
+        const off = officers.find((o) => o.id === selectedTask.assignedTo);
+        origin = off?.base ?? null;
+      }
+
+      // Otherwise, try Distance Matrix to find lowest ETA
+      if (!origin && officers.length > 0) {
+        try {
+          const svc = new google.maps.DistanceMatrixService();
+          const res = await svc.getDistanceMatrix({
+            origins: officers.map((o) => o.base),
+            destinations: [selectedTask.coords],
+            travelMode: google.maps.TravelMode.DRIVING,
+            avoidHighways: false,
+            avoidTolls: false,
+          });
+          const rows = res.rows || [];
+          let bestIdx = 0;
+          let bestMs = Number.POSITIVE_INFINITY;
+          rows.forEach((row, i) => {
+            const el = row.elements?.[0];
+            const ms = el?.duration?.value ?? Number.POSITIVE_INFINITY;
+            if (ms < bestMs) {
+              bestMs = ms;
+              bestIdx = i;
+            }
+          });
+          origin = officers[bestIdx]?.base ?? officers[0].base;
+        } catch (e) {
+          // Fallback to straight-line nearest if Distance Matrix fails
+          const nearest = [...officers].sort(
+            (a, b) =>
+              distance(a.base, selectedTask.coords) -
+              distance(b.base, selectedTask.coords)
+          )[0];
+          origin = nearest?.base ?? null;
+        }
+      }
+
+      if (!origin) {
+        setRouteInfo(null);
+        return;
+      }
+
+      try {
+        const ds = new google.maps.DirectionsService();
+        const result = await ds.route({
+          origin,
+          destination: selectedTask.coords,
+          travelMode: google.maps.TravelMode.DRIVING,
+          optimizeWaypoints: false,
+          provideRouteAlternatives: false,
+        });
+        if (cancelled) return;
+        directionsRendererRef.current?.setDirections(result);
+        const leg = result.routes?.[0]?.legs?.[0];
+        setRouteInfo({
+          distanceText: leg?.distance?.text,
+          durationText: leg?.duration?.text,
+        });
+      } catch (e) {
+        directionsRendererRef.current?.setDirections({ routes: [] } as any);
+        setRouteInfo(null);
+      }
     }
-    calc().catch(() => {
-      setRoutePath(null);
-      setRouteInfo(null);
-    });
+    calc();
     return () => {
       cancelled = true;
     };
-  }, [routesLib, selectedTask, officers]);
+  }, [selectedTask, officers]);
 
   const statusColor: Record<string, string> = {
     pending: "#f59e0b",
@@ -193,17 +242,7 @@ export function MapCanvas({
           />
         ))}
 
-        {/* Route for selected task */}
-        {routePath && (
-          <Polyline
-            path={routePath}
-            options={{
-              strokeColor: "#2563eb",
-              strokeOpacity: 0.9,
-              strokeWeight: 5,
-            }}
-          />
-        )}
+        {/* Route is rendered via DirectionsRenderer imperatively */}
       </Map>
 
       {/* Overlay: selected task info */}
@@ -264,14 +303,23 @@ function FallbackCanvas({
     };
   }, []);
 
-  const lats = tasks.map((t) => t.coords.lat).concat(officers.map((o) => o.base.lat));
-  const lngs = tasks.map((t) => t.coords.lng).concat(officers.map((o) => o.base.lng));
+  const lats = tasks
+    .map((t) => t.coords.lat)
+    .concat(officers.map((o) => o.base.lat));
+  const lngs = tasks
+    .map((t) => t.coords.lng)
+    .concat(officers.map((o) => o.base.lng));
   const minLat = Math.min(...lats, 13.6);
   const maxLat = Math.max(...lats, 13.95);
   const minLng = Math.min(...lngs, 100.4);
   const maxLng = Math.max(...lngs, 100.75);
   const pad = 0.01;
-  const b = { minLat: minLat - pad, maxLat: maxLat + pad, minLng: minLng - pad, maxLng: maxLng + pad };
+  const b = {
+    minLat: minLat - pad,
+    maxLat: maxLat + pad,
+    minLng: minLng - pad,
+    maxLng: maxLng + pad,
+  };
 
   function project(lat: number, lng: number) {
     const x = ((lng - b.minLng) / (b.maxLng - b.minLng)) * size.w;
@@ -286,12 +334,20 @@ function FallbackCanvas({
     issue: "bg-rose-500",
   };
   return (
-    <div ref={containerRef} className="relative w-full h-full min-h-[260px] rounded-md border bg-secondary/30 overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full min-h-[260px] rounded-md border bg-secondary/30 overflow-hidden"
+    >
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,.04)_1px,transparent_1px)] bg-[size:20px_20px]" />
       {officers.map((o) => {
         const p = project(o.base.lat, o.base.lng);
         return (
-          <div key={o.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }} title={`${o.name} (${o.zoneLabel})`}>
+          <div
+            key={o.id}
+            className="absolute -translate-x-1/2 -translate-y-1/2"
+            style={{ left: p.x, top: p.y }}
+            title={`${o.name} (${o.zoneLabel})`}
+          >
             <div className="w-3.5 h-3.5 bg-emerald-600 border-2 border-white rounded-sm shadow" />
           </div>
         );
@@ -300,9 +356,22 @@ function FallbackCanvas({
         const p = project(t.coords.lat, t.coords.lng);
         const active = t.id === selectedTaskId;
         return (
-          <button key={t.id} onClick={() => onSelectTask?.(t.id)} className="absolute -translate-x-1/2 -translate-y-1/2 outline-none" style={{ left: p.x, top: p.y }} title={`${t.patientName} • ${t.address}`}>
-            <span className={cn("block w-3.5 h-3.5 rounded-full border-2 border-white shadow", statusColor[t.status])} />
-            {active && <span className="absolute inset-0 -m-1 rounded-full ring-2 ring-primary/60 animate-ping" />}
+          <button
+            key={t.id}
+            onClick={() => onSelectTask?.(t.id)}
+            className="absolute -translate-x-1/2 -translate-y-1/2 outline-none"
+            style={{ left: p.x, top: p.y }}
+            title={`${t.patientName} • ${t.address}`}
+          >
+            <span
+              className={cn(
+                "block w-3.5 h-3.5 rounded-full border-2 border-white shadow",
+                statusColor[t.status]
+              )}
+            />
+            {active && (
+              <span className="absolute inset-0 -m-1 rounded-full ring-2 ring-primary/60 animate-ping" />
+            )}
           </button>
         );
       })}
