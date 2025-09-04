@@ -42,6 +42,7 @@ export default function Page() {
         <div className="space-y-3">
           <TaskList
             tasks={filtered}
+            officers={officers}
             selectedTaskId={selectedTaskId}
             onSelectTask={setSelectedTaskId}
             onAssignClick={(t) => {

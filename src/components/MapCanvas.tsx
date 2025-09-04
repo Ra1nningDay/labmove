@@ -4,6 +4,8 @@ import React from "react";
 import type { Task, Officer } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Map, Marker, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
+import { Button } from "@/components/ui/button";
+import { useTasks } from "@/store/tasks";
 
 type Props = {
   tasks: Task[];
@@ -35,6 +37,10 @@ export function MapCanvas({
   const map = useMap();
   // Load optional libraries; Directions/DistanceMatrix work without specifying in most builds
   useMapsLibrary("routes");
+  const { assignTask } = useTasks();
+
+  const [showTasks, setShowTasks] = React.useState(true);
+  const [showOfficers, setShowOfficers] = React.useState(true);
 
   const selectedTask = React.useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) || null,
@@ -55,7 +61,18 @@ export function MapCanvas({
   const [routeInfo, setRouteInfo] = React.useState<{
     distanceText?: string;
     durationText?: string;
+    officerId?: string;
   } | null>(null);
+  const [etaList, setEtaList] = React.useState<
+    | Array<{
+        officer: Officer;
+        durationText?: string;
+        durationValue?: number;
+        distanceText?: string;
+        distanceValue?: number;
+      }>
+    | null
+  >(null);
   const directionsRendererRef = React.useRef<google.maps.DirectionsRenderer | null>(null);
 
   // Prepare directions renderer when map is ready
@@ -86,41 +103,49 @@ export function MapCanvas({
       if (!mapRef.current || !selectedTask) {
         directionsRendererRef.current?.setDirections({ routes: [] } as any);
         setRouteInfo(null);
+        setEtaList(null);
         return;
       }
 
       let origin: LatLng | null = null;
+      let chosenOfficerId: string | undefined;
 
       // If already assigned, use that officer
       if (selectedTask.assignedTo) {
         const off = officers.find((o) => o.id === selectedTask.assignedTo);
         origin = off?.base ?? null;
+        chosenOfficerId = off?.id;
       }
 
-      // Otherwise, try Distance Matrix to find lowest ETA
-      if (!origin && officers.length > 0) {
-        try {
-          const svc = new google.maps.DistanceMatrixService();
-          const res = await svc.getDistanceMatrix({
-            origins: officers.map((o) => o.base),
-            destinations: [selectedTask.coords],
-            travelMode: google.maps.TravelMode.DRIVING,
-            avoidHighways: false,
-            avoidTolls: false,
-          });
-          const rows = res.rows || [];
-          let bestIdx = 0;
-          let bestMs = Number.POSITIVE_INFINITY;
-          rows.forEach((row, i) => {
-            const el = row.elements?.[0];
-            const ms = el?.duration?.value ?? Number.POSITIVE_INFINITY;
-            if (ms < bestMs) {
-              bestMs = ms;
-              bestIdx = i;
-            }
-          });
-          origin = officers[bestIdx]?.base ?? officers[0].base;
-        } catch (e) {
+      // Also compute ETA list and pick best when not already assigned
+      try {
+        const svc = new google.maps.DistanceMatrixService();
+        const res = await svc.getDistanceMatrix({
+          origins: officers.map((o) => o.base),
+          destinations: [selectedTask.coords],
+          travelMode: google.maps.TravelMode.DRIVING,
+          avoidHighways: false,
+          avoidTolls: false,
+        });
+        const rows = res.rows || [];
+        const list = rows.map((row, i) => {
+          const el = row.elements?.[0];
+          return {
+            officer: officers[i],
+            durationText: el?.duration?.text,
+            durationValue: el?.duration?.value,
+            distanceText: el?.distance?.text,
+            distanceValue: el?.distance?.value,
+          };
+        });
+        list.sort((a, b) => (a.durationValue ?? 1e12) - (b.durationValue ?? 1e12));
+        if (!cancelled) setEtaList(list);
+        if (!origin && list.length > 0) {
+          origin = list[0].officer.base;
+          chosenOfficerId = list[0].officer.id;
+        }
+      } catch (e) {
+        if (!origin) {
           // Fallback to straight-line nearest if Distance Matrix fails
           const nearest = [...officers].sort(
             (a, b) =>
@@ -128,11 +153,13 @@ export function MapCanvas({
               distance(b.base, selectedTask.coords)
           )[0];
           origin = nearest?.base ?? null;
+          chosenOfficerId = nearest?.id;
         }
       }
 
       if (!origin) {
         setRouteInfo(null);
+        setEtaList(null);
         return;
       }
 
@@ -151,6 +178,7 @@ export function MapCanvas({
         setRouteInfo({
           distanceText: leg?.distance?.text,
           durationText: leg?.duration?.text,
+          officerId: chosenOfficerId,
         });
       } catch (e) {
         directionsRendererRef.current?.setDirections({ routes: [] } as any);
@@ -212,7 +240,7 @@ export function MapCanvas({
         className="w-full h-full"
       >
         {/* Officers */}
-        {officers.map((o) => (
+        {showOfficers && officers.map((o) => (
           <Marker
             key={o.id}
             position={o.base}
@@ -221,7 +249,7 @@ export function MapCanvas({
         ))}
 
         {/* Tasks */}
-        {tasks.map((t) => (
+        {showTasks && tasks.map((t) => (
           <Marker
             key={t.id}
             position={t.coords}
@@ -247,7 +275,7 @@ export function MapCanvas({
 
       {/* Overlay: selected task info */}
       {selectedTask && (
-        <div className="absolute left-2 top-2 rounded-md border bg-background/95 backdrop-blur px-3 py-2 shadow">
+        <div className="absolute left-2 top-2 rounded-md border bg-background/95 backdrop-blur px-3 py-2 shadow max-w-[360px]">
           <div className="text-sm font-medium">{selectedTask.patientName}</div>
           <div
             className="text-xs text-muted-foreground max-w-[320px] truncate"
@@ -256,13 +284,61 @@ export function MapCanvas({
             {selectedTask.address}
           </div>
           {routeInfo && (
-            <div className="mt-1 text-xs text-muted-foreground">
-              เส้นทางโดยรถยนต์ • {routeInfo.distanceText} •{" "}
-              {routeInfo.durationText}
+            <div className="mt-2 text-xs text-muted-foreground space-y-1">
+              <div>เส้นทางโดยรถยนต์ • {routeInfo.distanceText} • {routeInfo.durationText}</div>
+              {routeInfo.officerId && (!selectedTask.assignedTo || selectedTask.assignedTo !== routeInfo.officerId) && (
+                <div className="flex items-center gap-2">
+                  <span>แนะนำ:</span>
+                  <span className="font-medium">
+                    {officers.find((o) => o.id === routeInfo.officerId)?.name}
+                  </span>
+                  <Button
+                    size="sm" variant="secondary"
+                    onClick={() => assignTask(selectedTask.id, routeInfo.officerId!)}
+                  >
+                    มอบหมายให้คนนนี้
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
+
+      {/* Overlay: controls and ETA list */}
+      <div className="absolute right-2 top-2 space-y-2">
+        <div className="flex items-center gap-2 bg-background/95 backdrop-blur border rounded-md p-1 shadow">
+          <Button size="sm" variant="ghost" onClick={() => bounds && mapRef.current?.fitBounds(new google.maps.LatLngBounds(
+              { lat: bounds.minLat, lng: bounds.minLng },
+              { lat: bounds.maxLat, lng: bounds.maxLng }
+            ))}>พอดีหน้าจอ</Button>
+          <Button size="sm" variant={showTasks ? "default" : "outline"} onClick={() => setShowTasks((v) => !v)}>
+            งาน
+          </Button>
+          <Button size="sm" variant={showOfficers ? "default" : "outline"} onClick={() => setShowOfficers((v) => !v)}>
+            เจ้าหน้าที่
+          </Button>
+        </div>
+
+        {selectedTask && etaList && (
+          <div className="bg-background/95 backdrop-blur border rounded-md p-2 shadow min-w-[220px]">
+            <div className="text-xs font-medium mb-1">เวลาเดินทาง (แนะนำลำดับแรก)</div>
+            <div className="space-y-1 max-h-[220px] overflow-auto pr-1">
+              {etaList.slice(0, 5).map((it, idx) => (
+                <div key={it.officer.id} className="flex items-center justify-between gap-2 text-xs">
+                  <div className="truncate">
+                    <span className={idx === 0 ? "font-semibold" : ""}>{it.officer.name}</span>
+                    <span className="text-muted-foreground"> • {it.durationText ?? "-"} • {it.distanceText ?? "-"}</span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => assignTask(selectedTask.id, it.officer.id)}>
+                    เลือก
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
