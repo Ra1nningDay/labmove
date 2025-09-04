@@ -216,6 +216,29 @@ export function MapCanvas({
     return { minLat, maxLat, minLng, maxLng };
   }, [tasks, officers]);
 
+  // If all officer bases are identical/nearby, scatter them for display only
+  const mapOfficers = React.useMemo(() => {
+    if (!officers.length) return officers;
+    const unique = new Set(
+      officers.map((o) => `${o.base.lat.toFixed(4)},${o.base.lng.toFixed(4)}`)
+    );
+    if (unique.size > Math.max(2, Math.floor(officers.length / 3))) return officers;
+    const center = tasks.length
+      ? {
+          lat: tasks.reduce((s, t) => s + t.coords.lat, 0) / tasks.length,
+          lng: tasks.reduce((s, t) => s + t.coords.lng, 0) / tasks.length,
+        }
+      : { lat: 13.7563, lng: 100.5018 };
+    const jitter = (r: number) => (Math.random() * 2 - 1) * r;
+    return officers.map((o, i) => ({
+      ...o,
+      base: {
+        lat: center.lat + jitter(0.03) + i * 0.0001,
+        lng: center.lng + jitter(0.03) + i * 0.0001,
+      },
+    }));
+  }, [officers, tasks]);
+
   React.useEffect(() => {
     if (!mapRef.current || !bounds) return;
     const b = new google.maps.LatLngBounds(
@@ -242,7 +265,7 @@ export function MapCanvas({
         className="w-full h-full"
       >
         {/* Officers */}
-        {showOfficers && officers.map((o) => {
+        {showOfficers && mapOfficers.map((o) => {
           const isChosen = routeInfo?.officerId === o.id;
           return (
             <Marker
