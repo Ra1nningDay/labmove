@@ -137,7 +137,7 @@ function InnerMapCanvas({
     };
   }, [map]);
 
-  // Compute nearest officer by ETA (Distance Matrix), then render directions
+  // Compute route: prefer manually selected officer; else assigned; else best ETA
   React.useEffect(() => {
     let cancelled = false;
     async function calc() {
@@ -151,8 +151,13 @@ function InnerMapCanvas({
       let origin: LatLng | null = null;
       let chosenOfficerId: string | undefined;
 
-      // If already assigned, use that officer
-      if (selectedTask.assignedTo) {
+      // If a manual selection exists, use it first
+      if (selectedOfficerId) {
+        const off = officers.find((o) => o.id === selectedOfficerId);
+        origin = off?.base ?? null;
+        chosenOfficerId = off?.id;
+      } else if (selectedTask.assignedTo) {
+        // Otherwise, if already assigned, use that officer
         const off = officers.find((o) => o.id === selectedTask.assignedTo);
         origin = off?.base ?? null;
         chosenOfficerId = off?.id;
@@ -232,7 +237,7 @@ function InnerMapCanvas({
     return () => {
       cancelled = true;
     };
-  }, [selectedTask, officers]);
+  }, [selectedTask, officers, selectedOfficerId]);
 
   // Task marker base color → orange, officer → blue/silver
   const statusColor: Record<string, string> = {
@@ -565,8 +570,8 @@ function InnerMapCanvas({
                   </div>
                   <Button
                     size="sm"
-                    variant="outline"
-                    onClick={() => assignTask(selectedTask.id, it.officer.id)}
+                    variant={selectedOfficerId === it.officer.id ? "secondary" : "outline"}
+                    onClick={() => setSelectedOfficerId(it.officer.id)}
                   >
                     เลือก
                   </Button>
