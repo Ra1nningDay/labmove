@@ -5,9 +5,7 @@ import type { Officer, Task } from "@/lib/types";
 // @ts-ignore - typing the JSON ad-hoc
 import RAW from "../../home_visit_mock_data.json";
 
-type RawItem = {
-  [key: string]: any;
-};
+type RawItem = Record<string, unknown>;
 
 function parseCoords(raw: string | undefined): { lat: number; lng: number } | null {
   if (!raw) return null;
@@ -36,11 +34,11 @@ export function buildHomeVisitData() {
   const tasks: Task[] = [];
 
   items.forEach((item, idx) => {
-    const name: string | undefined = item["ชื่อผู้รับบริการ"];
-    const address: string | undefined = item["ที่อยู่"];
-    const coordStr: string | undefined = item["ตำแหน่งที่อยู่"];
-    const officerName: string | undefined = item["ชื่อเจ้าหน้าที่"];
-    const dateStr: string | null = toIsoDate(item["วันที่นัดหมาย"]);
+    const name = item["ชื่อผู้รับบริการ"] as string | undefined;
+    const address = item["ที่อยู่"] as string | undefined;
+    const coordStr = item["ตำแหน่งที่อยู่"] as string | undefined;
+    const officerName = item["ชื่อเจ้าหน้าที่"] as string | undefined;
+    const dateStr: string | null = toIsoDate(item["วันที่นัดหมาย"] as string | undefined);
     const coords = parseCoords(coordStr);
 
     if (!name || !address || !coords || !dateStr) {

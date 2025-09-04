@@ -20,44 +20,48 @@ export function TaskList({ tasks, officers = [], selectedTaskId, onSelectTask, o
     return m;
   }, [officers]);
   return (
-    <div className="space-y-2">
+    <div className="rounded-md border bg-card">
+      <div className="p-2 text-xs text-muted-foreground">งานทั้งหมด ({tasks.length})</div>
+      <div className="divide-y">
       {tasks.map((t) => (
-        <div
-          key={t.id}
-          className={cn(
-            "rounded-md border p-3 bg-card/50 transition-colors",
-            selectedTaskId === t.id ? "border-primary/50" : "border-border"
-          )}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="space-y-0.5">
-                <button onClick={() => onSelectTask?.(t.id)} className="text-left">
-                  <div className="font-medium text-sm">{t.patientName}</div>
-                  <div className="text-xs text-muted-foreground">{t.address}</div>
-                  <div className="text-xs text-muted-foreground">{t.date}</div>
-                </button>
-                <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
+        <div key={t.id} className={cn("relative p-3 hover:bg-accent/30", selectedTaskId === t.id && "ring-1 ring-primary/50 bg-accent/40")}>
+          <div className={cn("absolute left-0 top-0 h-full w-1 rounded-r-sm", {
+            "bg-amber-500": t.status === "pending",
+            "bg-blue-500": t.status === "assigned",
+            "bg-indigo-500": t.status === "in_progress",
+            "bg-emerald-500": t.status === "done",
+            "bg-rose-500": t.status === "issue",
+          })} />
+          <div className="flex items-start justify-between gap-3">
+            <button onClick={() => onSelectTask?.(t.id)} className="text-left flex-1">
+              <div className="text-[15px] font-semibold leading-tight">{t.patientName}</div>
+              <div className="text-[12px] text-[#6b7280]">{t.address}</div>
+              <div className="text-[12px] text-[#6b7280]">{t.date}</div>
+              {t.tests.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-muted-foreground">
                   {t.tests.map((x) => (
                     <span key={x} className="rounded bg-secondary px-1.5 py-0.5">
                       {x}
                     </span>
                   ))}
                 </div>
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                <StatusBadge status={t.status} />
-                <Button size="sm" variant="outline" onClick={() => onAssignClick?.(t)}>
-                  มอบหมาย
-                </Button>
-              </div>
+              )}
+            </button>
+            <div className="flex flex-col items-end gap-2">
+              <StatusBadge status={t.status} />
+              <Button size="sm" onClick={() => onAssignClick?.(t)}>
+                มอบหมาย
+              </Button>
             </div>
+          </div>
           {t.assignedTo && (
-            <div className="mt-2 text-xs text-muted-foreground">
+            <div className="mt-1 text-[12px] text-muted-foreground">
               ผู้รับผิดชอบ: {officerById.get(t.assignedTo)?.name ?? t.assignedTo}
             </div>
           )}
         </div>
       ))}
+      </div>
     </div>
   );
 }

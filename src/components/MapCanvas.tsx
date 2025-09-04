@@ -3,8 +3,22 @@
 import React from "react";
 import type { Task, Officer } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Map, AdvancedMarker, Pin, Marker, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
+import {
+  Map,
+  AdvancedMarker,
+  Pin,
+  Marker,
+  useMapsLibrary,
+  useMap,
+} from "@vis.gl/react-google-maps";
 import { mapStyles, type MapStyleKey } from "@/lib/mapStyles";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTasks } from "@/store/tasks";
 
@@ -17,23 +31,20 @@ type Props = {
 
 type LatLng = google.maps.LatLngLiteral;
 
-export function MapCanvas({
+export function MapCanvas(props: Props) {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    return <FallbackCanvas {...props} />;
+  }
+  return <InnerMapCanvas {...props} />;
+}
+
+function InnerMapCanvas({
   tasks,
   officers,
   selectedTaskId,
   onSelectTask,
 }: Props) {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  if (!apiKey) {
-    return (
-      <FallbackCanvas
-        tasks={tasks}
-        officers={officers}
-        selectedTaskId={selectedTaskId}
-        onSelectTask={onSelectTask}
-      />
-    );
-  }
   const mapRef = React.useRef<google.maps.Map | null>(null);
   const map = useMap();
   // Load optional libraries; routes + advanced marker
@@ -77,6 +88,21 @@ export function MapCanvas({
   const directionsRendererRef =
     React.useRef<google.maps.DirectionsRenderer | null>(null);
 
+  // Safe symbol paths for Marker fallback (when AdvancedMarker unavailable)
+  const symbolPaths = React.useMemo(() => {
+    const g =
+      typeof window !== "undefined"
+        ? (window as unknown as { google?: typeof google }).google
+        : undefined;
+    const circle = g?.maps?.SymbolPath?.CIRCLE as
+      | google.maps.SymbolPath
+      | undefined;
+    const arrow = g?.maps?.SymbolPath?.BACKWARD_CLOSED_ARROW as
+      | google.maps.SymbolPath
+      | undefined;
+    return { circle, arrow };
+  }, []);
+
   const [styleKey, setStyleKey] = React.useState<MapStyleKey>("minimal");
   const defaultMapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID;
   const mapIdByStyle: Record<MapStyleKey, string | undefined> = {
@@ -84,8 +110,11 @@ export function MapCanvas({
     clean: process.env.NEXT_PUBLIC_GOOGLE_MAP_ID_CLEAN,
     dark: process.env.NEXT_PUBLIC_GOOGLE_MAP_ID_DARK,
   };
-  const selectedMapId = mapIdByStyle[styleKey] || defaultMapId;
+  const normalizeMapId = (id?: string) =>
+    id && id !== "default" ? id : undefined;
+  const selectedMapId = normalizeMapId(mapIdByStyle[styleKey] || defaultMapId);
   const hasVector = Boolean(selectedMapId);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
 
   // Prepare directions renderer when map is ready
   React.useEffect(() => {
@@ -113,7 +142,7 @@ export function MapCanvas({
     let cancelled = false;
     async function calc() {
       if (!mapRef.current || !selectedTask) {
-        directionsRendererRef.current?.setDirections({ routes: [] } as any);
+        directionsRendererRef.current?.setDirections(null);
         setRouteInfo(null);
         setEtaList(null);
         return;
@@ -158,7 +187,7 @@ export function MapCanvas({
           origin = list[0].officer.base;
           chosenOfficerId = list[0].officer.id;
         }
-      } catch (e) {
+      } catch {
         if (!origin) {
           // Fallback to straight-line nearest if Distance Matrix fails
           const nearest = [...officers].sort(
@@ -194,8 +223,8 @@ export function MapCanvas({
           durationText: leg?.duration?.text,
           officerId: chosenOfficerId,
         });
-      } catch (e) {
-        directionsRendererRef.current?.setDirections({ routes: [] } as any);
+      } catch {
+        directionsRendererRef.current?.setDirections(null);
         setRouteInfo(null);
       }
     }
@@ -279,8 +308,8 @@ export function MapCanvas({
         className="w-full h-full"
       >
         {/* Officers */}
-        {showOfficers && (
-          hasVector
+        {showOfficers &&
+          (hasVector
             ? mapOfficers.map((o) => {
                 const isChosen =
                   routeInfo?.officerId === o.id || selectedOfficerId === o.id;
@@ -316,23 +345,26 @@ export function MapCanvas({
                     position={o.base}
                     title={`${o.name} ${o.zoneLabel ?? ""}`}
                     zIndex={isChosen ? 1000 : 600}
-                    icon={{
-                      path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-                      fillColor: isChosen ? "#2563eb" : "#3b82f6",
-                      fillOpacity: 1,
-                      strokeColor: "#ffffff",
-                      strokeWeight: 1,
-                      scale: isChosen ? 7 : 5,
-                    }}
+                    icon={
+                      symbolPaths.arrow
+                        ? {
+                            path: symbolPaths.arrow,
+                            fillColor: isChosen ? "#2563eb" : "#3b82f6",
+                            fillOpacity: 1,
+                            strokeColor: "#ffffff",
+                            strokeWeight: 1,
+                            scale: isChosen ? 7 : 5,
+                          }
+                        : undefined
+                    }
                     onClick={() => setSelectedOfficerId(o.id)}
                   />
                 );
-              })
-        )}
+              }))}
 
         {/* Tasks */}
-        {showTasks && (
-          hasVector
+        {showTasks &&
+          (hasVector
             ? tasks.map((t) => {
                 const active = t.id === selectedTaskId;
                 return (
@@ -367,18 +399,23 @@ export function MapCanvas({
                     title={`${t.patientName} • ${t.address}`}
                     onClick={() => onSelectTask?.(t.id)}
                     zIndex={active ? 999 : 600}
-                    icon={{
-                      path: google.maps.SymbolPath.CIRCLE,
-                      fillColor: active ? "#ef4444" : statusColor[t.status],
-                      fillOpacity: 1,
-                      strokeColor: active ? "#111827" : "#ffffff",
-                      strokeWeight: active ? 3 : 2,
-                      scale: active ? 9 : 6,
-                    }}
+                    icon={
+                      symbolPaths.circle
+                        ? {
+                            path: symbolPaths.circle,
+                            fillColor: active
+                              ? "#ef4444"
+                              : statusColor[t.status],
+                            fillOpacity: 1,
+                            strokeColor: active ? "#111827" : "#ffffff",
+                            strokeWeight: active ? 3 : 2,
+                            scale: active ? 9 : 6,
+                          }
+                        : undefined
+                    }
                   />
                 );
-              })
-        )}
+              }))}
 
         {/* Route is rendered via DirectionsRenderer imperatively */}
       </Map>
@@ -496,13 +533,14 @@ export function MapCanvas({
           >
             เจ้าหน้าที่
           </Button>
-          {!hasVector && (
-            <div className="flex items-center gap-1 ml-1">
-              <Button size="sm" variant={styleKey === "minimal" ? "secondary" : "outline"} onClick={() => setStyleKey("minimal")}>Minimal</Button>
-              <Button size="sm" variant={styleKey === "clean" ? "secondary" : "outline"} onClick={() => setStyleKey("clean")}>Clean</Button>
-              <Button size="sm" variant={styleKey === "dark" ? "secondary" : "outline"} onClick={() => setStyleKey("dark")}>Dark</Button>
-            </div>
-          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSettingsOpen(true)}
+            title="ตั้งค่าแผนที่"
+          >
+            <Settings className="size-4" />
+          </Button>
         </div>
 
         {selectedTask && etaList && (
@@ -538,6 +576,44 @@ export function MapCanvas({
           </div>
         )}
       </div>
+
+      {/* Settings Modal */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ตั้งค่าแผนที่</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-xs text-muted-foreground">
+              Advanced Marker:{" "}
+              {hasVector ? (
+                <span className="text-emerald-600">เปิดใช้งาน (Map ID)</span>
+              ) : (
+                <span className="text-amber-600">ปิด (ยังไม่มี Map ID)</span>
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">สไตล์แผนที่</div>
+              <div className="grid grid-cols-3 gap-2">
+                {(["minimal"] as MapStyleKey[]).map((k) => (
+                  <Button
+                    key={k}
+                    variant={styleKey === k ? "secondary" : "outline"}
+                    onClick={() => setStyleKey(k)}
+                  >
+                    {k.charAt(0).toUpperCase() + k.slice(1)}
+                  </Button>
+                ))}
+              </div>
+              {!hasVector && (
+                <div className="text-[11px] text-muted-foreground mt-1">
+                  ไม่มี Map ID: ใช้สไตล์ภายใน (JSON) เพื่อซ่อน POIs/ไอคอนรบกวน
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

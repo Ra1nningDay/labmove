@@ -58,7 +58,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       updateStatus,
       selectedTask,
     }),
-    [tasks, selectedTaskId]
+    [tasks, selectedTaskId, selectedTask]
   );
 
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;
