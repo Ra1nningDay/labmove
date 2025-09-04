@@ -3,7 +3,7 @@
 import React from "react";
 import type { Task, Officer } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Map, Marker, InfoWindow, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
+import { Map, AdvancedMarker, Pin, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
 import { Button } from "@/components/ui/button";
 import { useTasks } from "@/store/tasks";
 
@@ -35,15 +35,14 @@ export function MapCanvas({
   }
   const mapRef = React.useRef<google.maps.Map | null>(null);
   const map = useMap();
-  // Load optional libraries; Directions/DistanceMatrix work without specifying in most builds
+  // Load optional libraries; routes + advanced marker
   useMapsLibrary("routes");
+  useMapsLibrary("marker");
   const { assignTask } = useTasks();
 
   const [showTasks, setShowTasks] = React.useState(true);
   const [showOfficers, setShowOfficers] = React.useState(true);
   const [selectedOfficerId, setSelectedOfficerId] = React.useState<string | null>(null);
-  const [hoverTaskId, setHoverTaskId] = React.useState<string | null>(null);
-  const [hoverOfficerId, setHoverOfficerId] = React.useState<string | null>(null);
 
   const selectedTask = React.useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) || null,
@@ -250,11 +249,6 @@ export function MapCanvas({
     mapRef.current.fitBounds(b);
   }, [bounds]);
 
-  const symbolPath =
-    (typeof window !== "undefined" &&
-      (window as any).google?.maps?.SymbolPath?.CIRCLE) ||
-    undefined;
-
   return (
     <div className="relative w-full h-full min-h-[320px] rounded-md border overflow-hidden">
       <Map
@@ -268,25 +262,27 @@ export function MapCanvas({
       >
         {/* Officers */}
         {showOfficers && mapOfficers.map((o) => {
-          const isChosen = routeInfo?.officerId === o.id;
+          const isChosen = routeInfo?.officerId === o.id || selectedOfficerId === o.id;
           return (
-            <Marker
+            <AdvancedMarker
               key={o.id}
               position={o.base}
               title={`${o.name} ${o.zoneLabel ?? ""}`}
-              zIndex={isChosen ? 1000 : 500}
-              icon={{
-                path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-                fillColor: isChosen || selectedOfficerId === o.id ? "#2563eb" : "#3b82f6",
-                fillOpacity: 1,
-                strokeColor: "#ffffff",
-                strokeWeight: 1,
-                scale: isChosen || selectedOfficerId === o.id ? 7 : 5,
-              }}
+              zIndex={isChosen ? 2000 : 1200}
               onClick={() => setSelectedOfficerId(o.id)}
-              onMouseOver={() => setHoverOfficerId(o.id)}
-              onMouseOut={() => setHoverOfficerId((v) => (v === o.id ? null : v))}
-            />
+            >
+              <div className="flex items-center -translate-y-1">
+                <Pin
+                  background={isChosen ? "#2563eb" : "#3b82f6"}
+                  borderColor="#ffffff"
+                  glyphColor="#ffffff"
+                  scale={isChosen ? 1.2 : 1}
+                />
+                <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[160px] truncate">
+                  {o.name}{selectedOfficerId === o.id ? " • กำลังเลือก" : ""}
+                </span>
+              </div>
+            </AdvancedMarker>
           );
         })}
 
@@ -294,48 +290,29 @@ export function MapCanvas({
         {showTasks && tasks.map((t) => {
           const active = t.id === selectedTaskId;
           return (
-            <Marker
+            <AdvancedMarker
               key={t.id}
               position={t.coords}
               title={`${t.patientName} • ${t.address}`}
               onClick={() => onSelectTask?.(t.id)}
-              zIndex={active ? 999 : 600}
-              icon={
-                symbolPath
-                  ? {
-                      path: symbolPath,
-                      fillColor: active ? "#ef4444" : statusColor[t.status],
-                      fillOpacity: 1,
-                      strokeColor: active ? "#111827" : "#ffffff",
-                      strokeWeight: active ? 3 : 2,
-                      scale: active ? 9 : 6,
-                    }
-                  : undefined
-              }
-              onMouseOver={() => setHoverTaskId(t.id)}
-              onMouseOut={() => setHoverTaskId((v) => (v === t.id ? null : v))}
-            />
+              zIndex={active ? 1800 : 1000}
+            >
+              <div className="flex items-center -translate-y-1">
+                <Pin
+                  background={active ? "#ef4444" : statusColor[t.status]}
+                  borderColor={active ? "#111827" : "#ffffff"}
+                  glyphColor="#ffffff"
+                  scale={active ? 1.3 : 1}
+                />
+                <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[200px] truncate">
+                  {t.patientName}{active ? " • กำลังเลือก" : ""}
+                </span>
+              </div>
+            </AdvancedMarker>
           );
         })}
 
         {/* Route is rendered via DirectionsRenderer imperatively */}
-        {/* Labels for active selections */}
-        {(selectedTask || hoverTaskId) && (
-          <InfoWindow position={selectedTask.coords}>
-            <div className="text-xs">
-              ลูกค้า: <span className="font-medium">{(selectedTask || tasks.find(t=>t.id===hoverTaskId))?.patientName}</span>
-              {selectedTask && " • กำลังเลือกอยู่"}
-            </div>
-          </InfoWindow>
-        )}
-        {(selectedOfficerId || hoverOfficerId) && (
-          <InfoWindow position={mapOfficers.find(o => o.id === (selectedOfficerId || hoverOfficerId))?.base} onCloseClick={() => setSelectedOfficerId(null)}>
-            <div className="text-xs">
-              เจ้าหน้าที่: <span className="font-medium">{officers.find(o => o.id === (selectedOfficerId || hoverOfficerId))?.name}</span>
-              {selectedOfficerId && " • กำลังเลือกอยู่"}
-            </div>
-          </InfoWindow>
-        )}
       </Map>
 
       {/* Overlay: selected task info */}
