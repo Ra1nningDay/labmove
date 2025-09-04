@@ -3,7 +3,7 @@
 import React from "react";
 import type { Task, Officer } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Map, AdvancedMarker, Pin, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
+import { Map, AdvancedMarker, Pin, Marker, useMapsLibrary, useMap } from "@vis.gl/react-google-maps";
 import { Button } from "@/components/ui/button";
 import { useTasks } from "@/store/tasks";
 
@@ -37,12 +37,14 @@ export function MapCanvas({
   const map = useMap();
   // Load optional libraries; routes + advanced marker
   useMapsLibrary("routes");
-  useMapsLibrary("marker");
+  const hasMapId = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAP_ID);
   const { assignTask } = useTasks();
 
   const [showTasks, setShowTasks] = React.useState(true);
   const [showOfficers, setShowOfficers] = React.useState(true);
-  const [selectedOfficerId, setSelectedOfficerId] = React.useState<string | null>(null);
+  const [selectedOfficerId, setSelectedOfficerId] = React.useState<
+    string | null
+  >(null);
 
   const selectedTask = React.useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) || null,
@@ -65,17 +67,15 @@ export function MapCanvas({
     durationText?: string;
     officerId?: string;
   } | null>(null);
-  const [etaList, setEtaList] = React.useState<
-    | Array<{
-        officer: Officer;
-        durationText?: string;
-        durationValue?: number;
-        distanceText?: string;
-        distanceValue?: number;
-      }>
-    | null
-  >(null);
-  const directionsRendererRef = React.useRef<google.maps.DirectionsRenderer | null>(null);
+  const [etaList, setEtaList] = React.useState<Array<{
+    officer: Officer;
+    durationText?: string;
+    durationValue?: number;
+    distanceText?: string;
+    distanceValue?: number;
+  }> | null>(null);
+  const directionsRendererRef =
+    React.useRef<google.maps.DirectionsRenderer | null>(null);
 
   // Prepare directions renderer when map is ready
   React.useEffect(() => {
@@ -140,7 +140,9 @@ export function MapCanvas({
             distanceValue: el?.distance?.value,
           };
         });
-        list.sort((a, b) => (a.durationValue ?? 1e12) - (b.durationValue ?? 1e12));
+        list.sort(
+          (a, b) => (a.durationValue ?? 1e12) - (b.durationValue ?? 1e12)
+        );
         if (!cancelled) setEtaList(list);
         if (!origin && list.length > 0) {
           origin = list[0].officer.base;
@@ -223,7 +225,8 @@ export function MapCanvas({
     const unique = new Set(
       officers.map((o) => `${o.base.lat.toFixed(4)},${o.base.lng.toFixed(4)}`)
     );
-    if (unique.size > Math.max(2, Math.floor(officers.length / 3))) return officers;
+    if (unique.size > Math.max(2, Math.floor(officers.length / 3)))
+      return officers;
     const center = tasks.length
       ? {
           lat: tasks.reduce((s, t) => s + t.coords.lat, 0) / tasks.length,
@@ -261,56 +264,106 @@ export function MapCanvas({
         className="w-full h-full"
       >
         {/* Officers */}
-        {showOfficers && mapOfficers.map((o) => {
-          const isChosen = routeInfo?.officerId === o.id || selectedOfficerId === o.id;
-          return (
-            <AdvancedMarker
-              key={o.id}
-              position={o.base}
-              title={`${o.name} ${o.zoneLabel ?? ""}`}
-              zIndex={isChosen ? 2000 : 1200}
-              onClick={() => setSelectedOfficerId(o.id)}
-            >
-              <div className="flex items-center -translate-y-1">
-                <Pin
-                  background={isChosen ? "#2563eb" : "#3b82f6"}
-                  borderColor="#ffffff"
-                  glyphColor="#ffffff"
-                  scale={isChosen ? 1.2 : 1}
-                />
-                <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[160px] truncate">
-                  {o.name}{selectedOfficerId === o.id ? " • กำลังเลือก" : ""}
-                </span>
-              </div>
-            </AdvancedMarker>
-          );
-        })}
+        {showOfficers && (
+          hasMapId
+            ? mapOfficers.map((o) => {
+                const isChosen =
+                  routeInfo?.officerId === o.id || selectedOfficerId === o.id;
+                return (
+                  <AdvancedMarker
+                    key={o.id}
+                    position={o.base}
+                    title={`${o.name} ${o.zoneLabel ?? ""}`}
+                    zIndex={isChosen ? 2000 : 1200}
+                    onClick={() => setSelectedOfficerId(o.id)}
+                  >
+                    <div className="flex items-center -translate-y-1">
+                      <Pin
+                        background={isChosen ? "#2563eb" : "#3b82f6"}
+                        borderColor="#ffffff"
+                        glyphColor="#ffffff"
+                        scale={isChosen ? 1.2 : 1}
+                      />
+                      <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[160px] truncate">
+                        {o.name}
+                        {selectedOfficerId === o.id ? " • กำลังเลือก" : ""}
+                      </span>
+                    </div>
+                  </AdvancedMarker>
+                );
+              })
+            : mapOfficers.map((o) => {
+                const isChosen =
+                  routeInfo?.officerId === o.id || selectedOfficerId === o.id;
+                return (
+                  <Marker
+                    key={o.id}
+                    position={o.base}
+                    title={`${o.name} ${o.zoneLabel ?? ""}`}
+                    zIndex={isChosen ? 1000 : 600}
+                    icon={{
+                      path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+                      fillColor: isChosen ? "#2563eb" : "#3b82f6",
+                      fillOpacity: 1,
+                      strokeColor: "#ffffff",
+                      strokeWeight: 1,
+                      scale: isChosen ? 7 : 5,
+                    }}
+                    onClick={() => setSelectedOfficerId(o.id)}
+                  />
+                );
+              })
+        )}
 
         {/* Tasks */}
-        {showTasks && tasks.map((t) => {
-          const active = t.id === selectedTaskId;
-          return (
-            <AdvancedMarker
-              key={t.id}
-              position={t.coords}
-              title={`${t.patientName} • ${t.address}`}
-              onClick={() => onSelectTask?.(t.id)}
-              zIndex={active ? 1800 : 1000}
-            >
-              <div className="flex items-center -translate-y-1">
-                <Pin
-                  background={active ? "#ef4444" : statusColor[t.status]}
-                  borderColor={active ? "#111827" : "#ffffff"}
-                  glyphColor="#ffffff"
-                  scale={active ? 1.3 : 1}
-                />
-                <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[200px] truncate">
-                  {t.patientName}{active ? " • กำลังเลือก" : ""}
-                </span>
-              </div>
-            </AdvancedMarker>
-          );
-        })}
+        {showTasks && (
+          hasMapId
+            ? tasks.map((t) => {
+                const active = t.id === selectedTaskId;
+                return (
+                  <AdvancedMarker
+                    key={t.id}
+                    position={t.coords}
+                    title={`${t.patientName} • ${t.address}`}
+                    onClick={() => onSelectTask?.(t.id)}
+                    zIndex={active ? 1800 : 1000}
+                  >
+                    <div className="flex items-center -translate-y-1">
+                      <Pin
+                        background={active ? "#ef4444" : statusColor[t.status]}
+                        borderColor={active ? "#111827" : "#ffffff"}
+                        glyphColor="#ffffff"
+                        scale={active ? 1.3 : 1}
+                      />
+                      <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[200px] truncate">
+                        {t.patientName}
+                        {active ? " • กำลังเลือก" : ""}
+                      </span>
+                    </div>
+                  </AdvancedMarker>
+                );
+              })
+            : tasks.map((t) => {
+                const active = t.id === selectedTaskId;
+                return (
+                  <Marker
+                    key={t.id}
+                    position={t.coords}
+                    title={`${t.patientName} • ${t.address}`}
+                    onClick={() => onSelectTask?.(t.id)}
+                    zIndex={active ? 999 : 600}
+                    icon={{
+                      path: google.maps.SymbolPath.CIRCLE,
+                      fillColor: active ? "#ef4444" : statusColor[t.status],
+                      fillOpacity: 1,
+                      strokeColor: active ? "#111827" : "#ffffff",
+                      strokeWeight: active ? 3 : 2,
+                      scale: active ? 9 : 6,
+                    }}
+                  />
+                );
+              })
+        )}
 
         {/* Route is rendered via DirectionsRenderer imperatively */}
       </Map>
@@ -327,21 +380,29 @@ export function MapCanvas({
           </div>
           {routeInfo && (
             <div className="mt-2 text-xs text-muted-foreground space-y-1">
-              <div>เส้นทางโดยรถยนต์ • {routeInfo.distanceText} • {routeInfo.durationText}</div>
-              {routeInfo.officerId && (!selectedTask.assignedTo || selectedTask.assignedTo !== routeInfo.officerId) && (
-                <div className="flex items-center gap-2">
-                  <span>แนะนำ:</span>
-                  <span className="font-medium">
-                    {officers.find((o) => o.id === routeInfo.officerId)?.name}
-                  </span>
-                  <Button
-                    size="sm" variant="secondary"
-                    onClick={() => assignTask(selectedTask.id, routeInfo.officerId!)}
-                  >
-                    มอบหมายให้คนนนี้
-                  </Button>
-                </div>
-              )}
+              <div>
+                เส้นทางโดยรถยนต์ • {routeInfo.distanceText} •{" "}
+                {routeInfo.durationText}
+              </div>
+              {routeInfo.officerId &&
+                (!selectedTask.assignedTo ||
+                  selectedTask.assignedTo !== routeInfo.officerId) && (
+                  <div className="flex items-center gap-2">
+                    <span>แนะนำ:</span>
+                    <span className="font-medium">
+                      {officers.find((o) => o.id === routeInfo.officerId)?.name}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        assignTask(selectedTask.id, routeInfo.officerId!)
+                      }
+                    >
+                      มอบหมายให้คนนนี้
+                    </Button>
+                  </div>
+                )}
             </div>
           )}
         </div>
@@ -350,40 +411,103 @@ export function MapCanvas({
       {/* Overlay: legend */}
       <div className="absolute left-2 bottom-2 rounded-md border bg-background/95 backdrop-blur px-2 py-1.5 shadow text-[11px]">
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1"><span className="inline-block size-2 rounded-full" style={{background:'#f59e0b'}}></span>รอยืนยัน</span>
-          <span className="flex items-center gap-1"><span className="inline-block size-2 rounded-full" style={{background:'#3b82f6'}}></span>มอบหมายแล้ว</span>
-          <span className="flex items-center gap-1"><span className="inline-block size-2 rounded-full" style={{background:'#6366f1'}}></span>กำลังดำเนินการ</span>
-          <span className="flex items-center gap-1"><span className="inline-block size-2 rounded-full" style={{background:'#10b981'}}></span>เสร็จสิ้น</span>
-          <span className="flex items-center gap-1"><span className="inline-block size-2 rounded-full" style={{background:'#ef4444'}}></span>ติดปัญหา</span>
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block size-2 rounded-full"
+              style={{ background: "#f59e0b" }}
+            ></span>
+            รอยืนยัน
+          </span>
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block size-2 rounded-full"
+              style={{ background: "#3b82f6" }}
+            ></span>
+            มอบหมายแล้ว
+          </span>
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block size-2 rounded-full"
+              style={{ background: "#6366f1" }}
+            ></span>
+            กำลังดำเนินการ
+          </span>
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block size-2 rounded-full"
+              style={{ background: "#10b981" }}
+            ></span>
+            เสร็จสิ้น
+          </span>
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block size-2 rounded-full"
+              style={{ background: "#ef4444" }}
+            ></span>
+            ติดปัญหา
+          </span>
         </div>
       </div>
 
       {/* Overlay: controls and ETA list */}
       <div className="absolute right-2 top-2 space-y-2">
         <div className="flex items-center gap-2 bg-background/95 backdrop-blur border rounded-md p-1 shadow">
-          <Button size="sm" variant="ghost" onClick={() => bounds && mapRef.current?.fitBounds(new google.maps.LatLngBounds(
-              { lat: bounds.minLat, lng: bounds.minLng },
-              { lat: bounds.maxLat, lng: bounds.maxLng }
-            ))}>พอดีหน้าจอ</Button>
-          <Button size="sm" variant={showTasks ? "default" : "outline"} onClick={() => setShowTasks((v) => !v)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              bounds &&
+              mapRef.current?.fitBounds(
+                new google.maps.LatLngBounds(
+                  { lat: bounds.minLat, lng: bounds.minLng },
+                  { lat: bounds.maxLat, lng: bounds.maxLng }
+                )
+              )
+            }
+          >
+            พอดีหน้าจอ
+          </Button>
+          <Button
+            size="sm"
+            variant={showTasks ? "default" : "outline"}
+            onClick={() => setShowTasks((v) => !v)}
+          >
             งาน
           </Button>
-          <Button size="sm" variant={showOfficers ? "default" : "outline"} onClick={() => setShowOfficers((v) => !v)}>
+          <Button
+            size="sm"
+            variant={showOfficers ? "default" : "outline"}
+            onClick={() => setShowOfficers((v) => !v)}
+          >
             เจ้าหน้าที่
           </Button>
         </div>
 
         {selectedTask && etaList && (
           <div className="bg-background/95 backdrop-blur border rounded-md p-2 shadow min-w-[220px]">
-            <div className="text-xs font-medium mb-1">เวลาเดินทาง (แนะนำลำดับแรก)</div>
+            <div className="text-xs font-medium mb-1">
+              เวลาเดินทาง (แนะนำลำดับแรก)
+            </div>
             <div className="space-y-1 max-h-[220px] overflow-auto pr-1">
               {etaList.slice(0, 5).map((it, idx) => (
-                <div key={it.officer.id} className="flex items-center justify-between gap-2 text-xs">
+                <div
+                  key={it.officer.id}
+                  className="flex items-center justify-between gap-2 text-xs"
+                >
                   <div className="truncate">
-                    <span className={idx === 0 ? "font-semibold" : ""}>{it.officer.name}</span>
-                    <span className="text-muted-foreground"> • {it.durationText ?? "-"} • {it.distanceText ?? "-"}</span>
+                    <span className={idx === 0 ? "font-semibold" : ""}>
+                      {it.officer.name}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      • {it.durationText ?? "-"} • {it.distanceText ?? "-"}
+                    </span>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => assignTask(selectedTask.id, it.officer.id)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => assignTask(selectedTask.id, it.officer.id)}
+                  >
                     เลือก
                   </Button>
                 </div>
