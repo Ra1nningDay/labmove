@@ -42,6 +42,8 @@ export function MapCanvas({
   const [showTasks, setShowTasks] = React.useState(true);
   const [showOfficers, setShowOfficers] = React.useState(true);
   const [selectedOfficerId, setSelectedOfficerId] = React.useState<string | null>(null);
+  const [hoverTaskId, setHoverTaskId] = React.useState<string | null>(null);
+  const [hoverOfficerId, setHoverOfficerId] = React.useState<string | null>(null);
 
   const selectedTask = React.useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) || null,
@@ -282,6 +284,8 @@ export function MapCanvas({
                 scale: isChosen || selectedOfficerId === o.id ? 7 : 5,
               }}
               onClick={() => setSelectedOfficerId(o.id)}
+              onMouseOver={() => setHoverOfficerId(o.id)}
+              onMouseOut={() => setHoverOfficerId((v) => (v === o.id ? null : v))}
             />
           );
         })}
@@ -308,20 +312,28 @@ export function MapCanvas({
                     }
                   : undefined
               }
+              onMouseOver={() => setHoverTaskId(t.id)}
+              onMouseOut={() => setHoverTaskId((v) => (v === t.id ? null : v))}
             />
           );
         })}
 
         {/* Route is rendered via DirectionsRenderer imperatively */}
         {/* Labels for active selections */}
-        {selectedTask && (
+        {(selectedTask || hoverTaskId) && (
           <InfoWindow position={selectedTask.coords}>
-            <div className="text-xs">ลูกค้า: <span className="font-medium">{selectedTask.patientName}</span> • กำลังเลือกอยู่</div>
+            <div className="text-xs">
+              ลูกค้า: <span className="font-medium">{(selectedTask || tasks.find(t=>t.id===hoverTaskId))?.patientName}</span>
+              {selectedTask && " • กำลังเลือกอยู่"}
+            </div>
           </InfoWindow>
         )}
-        {selectedOfficerId && (
-          <InfoWindow position={officers.find(o => o.id === selectedOfficerId)?.base} onCloseClick={() => setSelectedOfficerId(null)}>
-            <div className="text-xs">เจ้าหน้าที่: <span className="font-medium">{officers.find(o => o.id === selectedOfficerId)?.name}</span> • กำลังเลือกอยู่</div>
+        {(selectedOfficerId || hoverOfficerId) && (
+          <InfoWindow position={mapOfficers.find(o => o.id === (selectedOfficerId || hoverOfficerId))?.base} onCloseClick={() => setSelectedOfficerId(null)}>
+            <div className="text-xs">
+              เจ้าหน้าที่: <span className="font-medium">{officers.find(o => o.id === (selectedOfficerId || hoverOfficerId))?.name}</span>
+              {selectedOfficerId && " • กำลังเลือกอยู่"}
+            </div>
           </InfoWindow>
         )}
       </Map>
