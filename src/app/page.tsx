@@ -33,6 +33,7 @@ export default function Page() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">LabMove Dashboard</h1>
+        <div className="text-xs text-muted-foreground">ทั้งหมด {filtered.length} เคส</div>
       </div>
 
       <Filters query={query} onChange={setQuery} />

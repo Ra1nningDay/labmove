@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import type { Task, TaskStatus } from "@/lib/types";
 import { INITIAL_TASKS } from "@/lib/mock";
+import { buildHomeVisitData } from "@/lib/homeVisit";
 
 type TasksContextValue = {
   tasks: Task[];
@@ -18,7 +19,9 @@ type TasksContextValue = {
 const TasksContext = createContext<TasksContextValue | undefined>(undefined);
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+  // Prefer tasks from home visit mock if available; fall back to default mock
+  const hv = buildHomeVisitData();
+  const [tasks, setTasks] = useState<Task[]>(hv.tasks.length > 0 ? hv.tasks : INITIAL_TASKS);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const assignTask = (taskId: string, officerId: string) => {
