@@ -240,35 +240,51 @@ export function MapCanvas({
         className="w-full h-full"
       >
         {/* Officers */}
-        {showOfficers && officers.map((o) => (
-          <Marker
-            key={o.id}
-            position={o.base}
-            title={`${o.name} ${o.zoneLabel ?? ""}`}
-          />
-        ))}
+        {showOfficers && officers.map((o) => {
+          const isChosen = routeInfo?.officerId === o.id;
+          return (
+            <Marker
+              key={o.id}
+              position={o.base}
+              title={`${o.name} ${o.zoneLabel ?? ""}`}
+              zIndex={isChosen ? 1000 : 500}
+              icon={{
+                path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+                fillColor: isChosen ? "#16a34a" : "#059669",
+                fillOpacity: 1,
+                strokeColor: "#ffffff",
+                strokeWeight: 1,
+                scale: isChosen ? 6 : 5,
+              }}
+            />
+          );
+        })}
 
         {/* Tasks */}
-        {showTasks && tasks.map((t) => (
-          <Marker
-            key={t.id}
-            position={t.coords}
-            title={`${t.patientName} • ${t.address}`}
-            onClick={() => onSelectTask?.(t.id)}
-            icon={
-              symbolPath
-                ? {
-                    path: symbolPath,
-                    fillColor: statusColor[t.status],
-                    fillOpacity: 1,
-                    strokeColor: "#ffffff",
-                    strokeWeight: 2,
-                    scale: t.id === selectedTaskId ? 8 : 6,
-                  }
-                : undefined
-            }
-          />
-        ))}
+        {showTasks && tasks.map((t) => {
+          const active = t.id === selectedTaskId;
+          return (
+            <Marker
+              key={t.id}
+              position={t.coords}
+              title={`${t.patientName} • ${t.address}`}
+              onClick={() => onSelectTask?.(t.id)}
+              zIndex={active ? 999 : 600}
+              icon={
+                symbolPath
+                  ? {
+                      path: symbolPath,
+                      fillColor: statusColor[t.status],
+                      fillOpacity: 1,
+                      strokeColor: active ? "#111827" : "#ffffff",
+                      strokeWeight: active ? 3 : 2,
+                      scale: active ? 9 : 6,
+                    }
+                  : undefined
+              }
+            />
+          );
+        })}
 
         {/* Route is rendered via DirectionsRenderer imperatively */}
       </Map>
