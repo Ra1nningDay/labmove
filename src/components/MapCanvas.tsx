@@ -17,7 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTasks } from "@/store/tasks";
 import { ControlsOverlay } from "@/components/map/ControlsOverlay";
@@ -84,13 +83,19 @@ function InnerMapCanvas(props: Props) {
   >(null);
   const [routeOpenInt, setRouteOpenInt] = React.useState(false);
   const routeOfficerId = routeOfficerIdProp ?? routeOfficerIdInt;
-  const setRouteOfficerId = (v: string | null) =>
-    onChangeRouteOfficerId
-      ? onChangeRouteOfficerId(v)
-      : setRouteOfficerIdInt(v);
+  const setRouteOfficerId = React.useCallback(
+    (v: string | null) =>
+      onChangeRouteOfficerId
+        ? onChangeRouteOfficerId(v)
+        : setRouteOfficerIdInt(v),
+    [onChangeRouteOfficerId, setRouteOfficerIdInt]
+  );
   const routeOpen = routeOpenProp ?? routeOpenInt;
-  const setRouteOpen = (v: boolean) =>
-    onChangeRouteOpen ? onChangeRouteOpen(v) : setRouteOpenInt(v);
+  const setRouteOpen = React.useCallback(
+    (v: boolean) =>
+      onChangeRouteOpen ? onChangeRouteOpen(v) : setRouteOpenInt(v),
+    [onChangeRouteOpen, setRouteOpenInt]
+  );
 
   const selectedTask = React.useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) || null,
@@ -148,7 +153,7 @@ function InnerMapCanvas(props: Props) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [routeOfficerId]);
+  }, [routeOfficerId, setRouteOfficerId]);
 
   // Safe symbol paths for Marker fallback (when AdvancedMarker unavailable)
   const symbolPaths = React.useMemo(() => {
@@ -318,7 +323,13 @@ function InnerMapCanvas(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selectedTask, officers, selectedOfficerId, routeOfficerId]);
+  }, [
+    selectedTask,
+    officers,
+    selectedOfficerId,
+    routeOfficerId,
+    clearDirections,
+  ]);
 
   // Admin route view: route through all tasks assigned to the chosen officer (for current filtered tasks list)
   React.useEffect(() => {
@@ -374,7 +385,7 @@ function InnerMapCanvas(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [routeOfficerId, officers, tasks]);
+  }, [routeOfficerId, officers, tasks, clearDirections]);
 
   // Task marker base color → orange, officer → blue/silver
   const statusColor: Record<string, string> = {
@@ -387,11 +398,17 @@ function InnerMapCanvas(props: Props) {
 
   // When route mode is active, show only that officer and their tasks
   const displayTasks = React.useMemo(
-    () => (routeOfficerId ? tasks.filter((t) => t.assignedTo === routeOfficerId) : tasks),
+    () =>
+      routeOfficerId
+        ? tasks.filter((t) => t.assignedTo === routeOfficerId)
+        : tasks,
     [tasks, routeOfficerId]
   );
   const displayOfficersRaw = React.useMemo(
-    () => (routeOfficerId ? officers.filter((o) => o.id === routeOfficerId) : officers),
+    () =>
+      routeOfficerId
+        ? officers.filter((o) => o.id === routeOfficerId)
+        : officers,
     [officers, routeOfficerId]
   );
 

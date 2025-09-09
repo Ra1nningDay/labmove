@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyLineSignature, replyMessage } from "@/server/line";
-import { upsertUserProgress, getUserProgress, clearUserProgress } from "@/server/store/session";
+import {
+  upsertUserProgress,
+  getUserProgress,
+  clearUserProgress,
+} from "@/server/store/session";
 import { handleSignupStep } from "@/server/agent/signupFlow";
 import type { LineWebhookEvent } from "@/server/types/line";
 import { saveUser } from "@/server/repo/users";
@@ -9,7 +13,11 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const raw = await req.text();
-  const ok = verifyLineSignature(raw, req.headers.get("x-line-signature") || "");
+  // console.log("LINE Webhook received:", raw);
+  const ok = verifyLineSignature(
+    raw,
+    req.headers.get("x-line-signature") || ""
+  );
   if (!ok) return new NextResponse("Invalid signature", { status: 401 });
 
   let body: { events?: LineWebhookEvent[] };
@@ -28,7 +36,10 @@ export async function POST(req: NextRequest) {
 
     // Load session progress
     const progress = getUserProgress(userId);
-    const { nextProgress, responseText, completedUser } = handleSignupStep(progress, ev.message.text);
+    const { nextProgress, responseText, completedUser } = handleSignupStep(
+      progress,
+      ev.message.text
+    );
     // Persist session state
     upsertUserProgress(userId, nextProgress);
 
@@ -50,4 +61,3 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
-
