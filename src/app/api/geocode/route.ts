@@ -12,6 +12,21 @@ type CacheEntry = {
   };
 };
 
+type GoogleGeocodeResponse = {
+  status: string;
+  results: Array<{
+    geometry?: {
+      location?: {
+        lat: number;
+        lng: number;
+      };
+    };
+    formatted_address?: string;
+    place_id?: string;
+  }>;
+  error_message?: string;
+};
+
 const MEMORY_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const memoryCache = new Map<string, CacheEntry>();
 
@@ -69,7 +84,7 @@ export async function POST(req: NextRequest) {
         status: 502,
       });
     }
-    const data: any = await resp.json();
+    const data: GoogleGeocodeResponse = await resp.json();
     if (data.status !== "OK" || !data.results?.length) {
       return new NextResponse(
         data.error_message || data.status || "ZERO_RESULTS",
@@ -88,7 +103,7 @@ export async function POST(req: NextRequest) {
     };
     memoryCache.set(key, { ts: now, value });
     return NextResponse.json({ source: "live", ...value });
-  } catch (e) {
+  } catch {
     return new NextResponse("geocode error", { status: 500 });
   }
 }

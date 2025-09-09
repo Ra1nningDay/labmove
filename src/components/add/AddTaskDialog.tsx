@@ -62,7 +62,7 @@ export function AddTaskDialog({
         try {
           const res = await geocodeAddress(address);
           coords = res.coords;
-        } catch (e) {
+        } catch {
           setSaving(false);
           setGeoError(
             "ไม่สามารถแปลงที่อยู่เป็นพิกัดได้ กรุณาระบุพิกัดเอง หรือใช้พิกัดตั้งต้น"

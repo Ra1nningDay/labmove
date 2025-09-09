@@ -60,7 +60,7 @@ export function AddOfficerDialog({
         try {
           const res = await geocodeAddress(baseAddress);
           base = res.coords;
-        } catch (e) {
+        } catch {
           // Geocoding failed, but we can still save without coords
           base = undefined;
         }
