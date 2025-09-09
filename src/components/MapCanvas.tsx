@@ -2,7 +2,6 @@
 
 import React from "react";
 import type { Task, Officer } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import {
   Map,
   AdvancedMarker,
@@ -18,9 +17,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Settings, Route as RouteIcon } from "lucide-react";
+import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTasks } from "@/store/tasks";
+import { ControlsOverlay } from "@/components/map/ControlsOverlay";
+import { LegendOverlay } from "@/components/map/LegendOverlay";
+import { EtaPanel } from "@/components/map/EtaPanel";
+import { SelectedTaskOverlay } from "@/components/map/SelectedTaskOverlay";
+import { RouteBanner } from "@/components/map/RouteBanner";
+import { FallbackCanvas } from "@/components/map/FallbackCanvas";
 import {
   Select,
   SelectContent,
@@ -571,197 +576,54 @@ function InnerMapCanvas(props: Props) {
 
       {/* Bottom-center banner for Route Mode */}
       {routeOfficerId && (
-        <div className="absolute inset-x-0 bottom-16 sm:bottom-12 md:bottom-10 lg:bottom-15 flex justify-center z-30 pointer-events-none">
-          <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-background/95 backdrop-blur border shadow px-3 py-1.5 ring-1 ring-amber-500/30">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/90 text-amber-900 text-[12px] font-medium dark:bg-amber-400/25 dark:text-amber-50">
-              <RouteIcon className="size-4" /> โหมดเส้นทาง
-            </span>
-            <div className="text-sm font-medium truncate max-w-[200px]">
-              {officers.find((o) => o.id === routeOfficerId)?.name ?? "-"}
-            </div>
-            <div className="hidden sm:block text-[11px] text-muted-foreground">
-              กด Esc เพื่อยกเลิก
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setRouteOfficerId(null)}
-            >
-              ยกเลิกเส้นทาง
-            </Button>
-          </div>
-        </div>
+        <RouteBanner
+          officerName={officers.find((o) => o.id === routeOfficerId)?.name}
+          onCancel={() => setRouteOfficerId(null)}
+        />
       )}
 
       {/* Overlay: selected task info */}
       {selectedTask && (
-        <div className="absolute left-2 top-2 rounded-md border bg-background/95 backdrop-blur px-3 py-2 shadow max-w-[360px]">
-          <div className="text-sm font-medium">{selectedTask.patientName}</div>
-          <div
-            className="text-xs text-muted-foreground max-w-[320px] truncate"
-            title={selectedTask.address}
-          >
-            {selectedTask.address}
-          </div>
-          {routeInfo && (
-            <div className="mt-2 text-xs text-muted-foreground space-y-1">
-              <div>
-                เส้นทางโดยรถยนต์ • {routeInfo.distanceText} •{" "}
-                {routeInfo.durationText}
-              </div>
-              {routeInfo.officerId &&
-                (!selectedTask.assignedTo ||
-                  selectedTask.assignedTo !== routeInfo.officerId) && (
-                  <div className="flex items-center gap-2">
-                    <span>แนะนำ:</span>
-                    <span className="font-medium">
-                      {officers.find((o) => o.id === routeInfo.officerId)?.name}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() =>
-                        assignTask(selectedTask.id, routeInfo.officerId!)
-                      }
-                    >
-                      มอบหมายให้คนนนี้
-                    </Button>
-                  </div>
-                )}
-            </div>
-          )}
-        </div>
+        <SelectedTaskOverlay
+          task={selectedTask}
+          routeInfo={routeInfo}
+          officers={officers}
+          onAssign={(taskId, officerId) => assignTask(taskId, officerId)}
+        />
       )}
 
       {/* Overlay: legend */}
-      <div className="absolute left-2 bottom-2 rounded-md border bg-background/95 backdrop-blur px-2 py-1.5 shadow text-[11px]">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <span
-              className="inline-block size-2 rounded-full"
-              style={{ background: "#f59e0b" }}
-            ></span>
-            รอยืนยัน
-          </span>
-          <span className="flex items-center gap-1">
-            <span
-              className="inline-block size-2 rounded-full"
-              style={{ background: "#3b82f6" }}
-            ></span>
-            มอบหมายแล้ว
-          </span>
-          <span className="flex items-center gap-1">
-            <span
-              className="inline-block size-2 rounded-full"
-              style={{ background: "#6366f1" }}
-            ></span>
-            กำลังดำเนินการ
-          </span>
-          <span className="flex items-center gap-1">
-            <span
-              className="inline-block size-2 rounded-full"
-              style={{ background: "#10b981" }}
-            ></span>
-            เสร็จสิ้น
-          </span>
-          <span className="flex items-center gap-1">
-            <span
-              className="inline-block size-2 rounded-full"
-              style={{ background: "#ef4444" }}
-            ></span>
-            ติดปัญหา
-          </span>
-        </div>
-      </div>
+      <LegendOverlay />
 
       {/* Overlay: controls and ETA list */}
-      <div className="absolute right-2 top-2 space-y-2">
-        <div className="flex items-center gap-2 bg-background/95 backdrop-blur border rounded-md p-1 shadow">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              bounds &&
-              mapRef.current?.fitBounds(
-                new google.maps.LatLngBounds(
-                  { lat: bounds.minLat, lng: bounds.minLng },
-                  { lat: bounds.maxLat, lng: bounds.maxLng }
-                )
-              )
-            }
-          >
-            พอดีหน้าจอ
-          </Button>
-          <Button
-            size="sm"
-            variant={showTasks ? "default" : "outline"}
-            onClick={() => setShowTasks((v) => !v)}
-          >
-            งาน
-          </Button>
-          <Button
-            size="sm"
-            variant={showOfficers ? "default" : "outline"}
-            onClick={() => setShowOfficers((v) => !v)}
-          >
-            เจ้าหน้าที่
-          </Button>
+      <ControlsOverlay
+        onFit={() =>
+          bounds &&
+          mapRef.current?.fitBounds(
+            new google.maps.LatLngBounds(
+              { lat: bounds.minLat, lng: bounds.minLng },
+              { lat: bounds.maxLat, lng: bounds.maxLng }
+            )
+          )
+        }
+        showTasks={showTasks}
+        setShowTasks={(v) => setShowTasks(v)}
+        showOfficers={showOfficers}
+        setShowOfficers={(v) => setShowOfficers(v)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenRoute={() => setRouteOpen(true)}
+        routeActive={!!routeOfficerId}
+      />
 
-          <Button
-            size="sm"
-            variant={routeOfficerId ? "default" : "outline"}
-            onClick={() => setRouteOpen(true)}
-            title="แสดงเส้นทางเจ้าหน้าที่"
-          >
-            <RouteIcon className="size-4 mr-1" /> เส้นทาง
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setSettingsOpen(true)}
-            title="ตั้งค่าแผนที่"
-          >
-            <Settings className="size-4" />
-          </Button>
+      {selectedTask && !routeOfficerId && etaList && (
+        <div className="absolute right-2 top-[56px]">
+          <EtaPanel
+            list={etaList}
+            selectedOfficerId={selectedOfficerId}
+            onSelect={(id) => setSelectedOfficerId(id)}
+          />
         </div>
-
-        {selectedTask && !routeOfficerId && etaList && (
-          <div className="bg-background/95 backdrop-blur border rounded-md p-2 shadow min-w-[220px]">
-            <div className="text-xs font-medium mb-1">
-              เวลาเดินทาง (แนะนำลำดับแรก)
-            </div>
-            <div className="space-y-1 max-h-[220px] overflow-auto pr-1">
-              {etaList.slice(0, 5).map((it, idx) => (
-                <div
-                  key={it.officer.id}
-                  className="flex items-center justify-between gap-2 text-xs"
-                >
-                  <div className="truncate">
-                    <span className={idx === 0 ? "font-semibold" : ""}>
-                      {it.officer.name}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {" "}
-                      • {it.durationText ?? "-"} • {it.distanceText ?? "-"}
-                    </span>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant={
-                      selectedOfficerId === it.officer.id
-                        ? "secondary"
-                        : "outline"
-                    }
-                    onClick={() => setSelectedOfficerId(it.officer.id)}
-                  >
-                    เลือก
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
@@ -856,107 +718,4 @@ function distance(a: LatLng, b: LatLng) {
   return 2 * R * Math.asin(Math.sqrt(s1 + s2));
 }
 
-function FallbackCanvas({
-  tasks,
-  officers,
-  selectedTaskId,
-  onSelectTask,
-  routeOfficerId,
-}: Props) {
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const [size, setSize] = React.useState({ w: 800, h: 320 });
-  React.useEffect(() => {
-    const update = () => {
-      const el = containerRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      setSize({ w: Math.max(320, rect.width), h: Math.max(260, rect.height) });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    if (containerRef.current) ro.observe(containerRef.current);
-    window.addEventListener("resize", update);
-    return () => {
-      window.removeEventListener("resize", update);
-      ro.disconnect();
-    };
-  }, []);
-
-  const ftasks = routeOfficerId ? tasks.filter((t) => t.assignedTo === routeOfficerId) : tasks;
-  const fofficers = routeOfficerId ? officers.filter((o) => o.id === routeOfficerId) : officers;
-
-  const lats = ftasks
-    .map((t) => t.coords.lat)
-    .concat(fofficers.map((o) => o.base.lat));
-  const lngs = ftasks
-    .map((t) => t.coords.lng)
-    .concat(fofficers.map((o) => o.base.lng));
-  const minLat = Math.min(...lats, 13.6);
-  const maxLat = Math.max(...lats, 13.95);
-  const minLng = Math.min(...lngs, 100.4);
-  const maxLng = Math.max(...lngs, 100.75);
-  const pad = 0.01;
-  const b = {
-    minLat: minLat - pad,
-    maxLat: maxLat + pad,
-    minLng: minLng - pad,
-    maxLng: maxLng + pad,
-  };
-
-  function project(lat: number, lng: number) {
-    const x = ((lng - b.minLng) / (b.maxLng - b.minLng)) * size.w;
-    const y = (1 - (lat - b.minLat) / (b.maxLat - b.minLat)) * size.h;
-    return { x, y };
-  }
-  const statusColor: Record<string, string> = {
-    pending: "bg-amber-500",
-    assigned: "bg-blue-500",
-    in_progress: "bg-indigo-500",
-    done: "bg-emerald-500",
-    issue: "bg-rose-500",
-  };
-  return (
-    <div
-      ref={containerRef}
-      className="relative w-full h-full min-h-[260px] rounded-md border bg-secondary/30 overflow-hidden"
-    >
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,.04)_1px,transparent_1px)] bg-[size:20px_20px]" />
-      {fofficers.map((o) => {
-        const p = project(o.base.lat, o.base.lng);
-        return (
-          <div
-            key={o.id}
-            className="absolute -translate-x-1/2 -translate-y-1/2"
-            style={{ left: p.x, top: p.y }}
-            title={`${o.name} (${o.zoneLabel})`}
-          >
-            <div className="w-3.5 h-3.5 bg-emerald-600 border-2 border-white rounded-sm shadow" />
-          </div>
-        );
-      })}
-      {ftasks.map((t) => {
-        const p = project(t.coords.lat, t.coords.lng);
-        const active = t.id === selectedTaskId;
-        return (
-          <button
-            key={t.id}
-            onClick={() => onSelectTask?.(t.id)}
-            className="absolute -translate-x-1/2 -translate-y-1/2 outline-none"
-            style={{ left: p.x, top: p.y }}
-            title={`${t.patientName} • ${t.address}`}
-          >
-            <span
-              className={cn(
-                "block w-3.5 h-3.5 rounded-full border-2 border-white shadow",
-                statusColor[t.status]
-              )}
-            />
-            {active && (
-              <span className="absolute inset-0 -m-1 rounded-full ring-2 ring-primary/60 animate-ping" />
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// Fallback Canvas moved to components/map/FallbackCanvas.tsx
