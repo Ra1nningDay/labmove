@@ -24,6 +24,8 @@ export default function Page() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [taskForAssign, setTaskForAssign] = useState<Task | null>(null);
   const [leftTab, setLeftTab] = useState<"tasks" | "officers">("tasks");
+  const [routeOfficerId, setRouteOfficerId] = useState<string | null>(null);
+  const [routeOpen, setRouteOpen] = useState(false);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -92,6 +94,10 @@ export default function Page() {
               <OfficerList
                 officers={officers}
                 selectedTask={selectedTask ?? null}
+                onShowRoute={(id) => {
+                  setRouteOfficerId(id);
+                  setRouteOpen(false);
+                }}
               />
             </div>
           )}
@@ -103,6 +109,10 @@ export default function Page() {
             officers={officers}
             selectedTaskId={selectedTaskId}
             onSelectTask={setSelectedTaskId}
+            routeOfficerId={routeOfficerId}
+            onChangeRouteOfficerId={setRouteOfficerId}
+            routeOpen={routeOpen}
+            onChangeRouteOpen={setRouteOpen}
           />
         </div>
       </div>

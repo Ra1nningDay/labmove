@@ -18,15 +18,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Settings } from "lucide-react";
+import { Settings, Route as RouteIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTasks } from "@/store/tasks";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Props = {
   tasks: Task[];
   officers: Officer[];
   selectedTaskId?: string | null;
   onSelectTask?: (id: string) => void;
+  // Optional external control for admin route mode
+  routeOfficerId?: string | null;
+  onChangeRouteOfficerId?: (id: string | null) => void;
+  routeOpen?: boolean;
+  onChangeRouteOpen?: (open: boolean) => void;
 };
 
 type LatLng = google.maps.LatLngLiteral;
@@ -39,12 +51,17 @@ export function MapCanvas(props: Props) {
   return <InnerMapCanvas {...props} />;
 }
 
-function InnerMapCanvas({
-  tasks,
-  officers,
-  selectedTaskId,
-  onSelectTask,
-}: Props) {
+function InnerMapCanvas(props: Props) {
+  const {
+    tasks,
+    officers,
+    selectedTaskId,
+    onSelectTask,
+    routeOfficerId: routeOfficerIdProp,
+    onChangeRouteOfficerId,
+    routeOpen: routeOpenProp,
+    onChangeRouteOpen,
+  } = props;
   const mapRef = React.useRef<google.maps.Map | null>(null);
   const map = useMap();
   // Load optional libraries; routes + advanced marker
@@ -56,6 +73,19 @@ function InnerMapCanvas({
   const [selectedOfficerId, setSelectedOfficerId] = React.useState<
     string | null
   >(null);
+  // Admin route mode (can be controlled externally via props)
+  const [routeOfficerIdInt, setRouteOfficerIdInt] = React.useState<
+    string | null
+  >(null);
+  const [routeOpenInt, setRouteOpenInt] = React.useState(false);
+  const routeOfficerId = routeOfficerIdProp ?? routeOfficerIdInt;
+  const setRouteOfficerId = (v: string | null) =>
+    onChangeRouteOfficerId
+      ? onChangeRouteOfficerId(v)
+      : setRouteOfficerIdInt(v);
+  const routeOpen = routeOpenProp ?? routeOpenInt;
+  const setRouteOpen = (v: boolean) =>
+    onChangeRouteOpen ? onChangeRouteOpen(v) : setRouteOpenInt(v);
 
   const selectedTask = React.useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) || null,
@@ -88,6 +118,33 @@ function InnerMapCanvas({
   const directionsRendererRef =
     React.useRef<google.maps.DirectionsRenderer | null>(null);
 
+  // Clear directions without passing null into setDirections (avoids InvalidValueError)
+  const clearDirections = React.useCallback(() => {
+    const dr = directionsRendererRef.current;
+    if (!dr) return;
+    try {
+      // Use empty result object to clear safely
+      dr.setDirections({
+        routes: [],
+      } as unknown as google.maps.DirectionsResult);
+    } catch {
+      try {
+        dr.setMap(null);
+      } catch {}
+    }
+  }, []);
+
+  // ESC key cancels route mode for quick exit
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && routeOfficerId) {
+        setRouteOfficerId(null);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [routeOfficerId]);
+
   // Safe symbol paths for Marker fallback (when AdvancedMarker unavailable)
   const symbolPaths = React.useMemo(() => {
     const g =
@@ -115,6 +172,13 @@ function InnerMapCanvas({
   const selectedMapId = normalizeMapId(mapIdByStyle[styleKey] || defaultMapId);
   const hasVector = Boolean(selectedMapId);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const handleOfficerClick = React.useCallback(
+    (id: string) => {
+      // Allow selecting officer only when a task is selected or admin route mode is active
+      if (selectedTask || routeOfficerId) setSelectedOfficerId(id);
+    },
+    [selectedTask, routeOfficerId]
+  );
 
   // Prepare directions renderer when map is ready
   React.useEffect(() => {
@@ -141,8 +205,16 @@ function InnerMapCanvas({
   React.useEffect(() => {
     let cancelled = false;
     async function calc() {
+      // Skip task routing when admin route mode is active
+      if (routeOfficerId) {
+        clearDirections();
+        setRouteInfo(null);
+        setEtaList(null);
+        return;
+      }
+
       if (!mapRef.current || !selectedTask) {
-        directionsRendererRef.current?.setDirections(null);
+        clearDirections();
         setRouteInfo(null);
         setEtaList(null);
         return;
@@ -221,7 +293,11 @@ function InnerMapCanvas({
           provideRouteAlternatives: false,
         });
         if (cancelled) return;
-        directionsRendererRef.current?.setDirections(result);
+        if (result && typeof result === "object") {
+          directionsRendererRef.current?.setDirections(result);
+        } else {
+          clearDirections();
+        }
         const leg = result.routes?.[0]?.legs?.[0];
         setRouteInfo({
           distanceText: leg?.distance?.text,
@@ -229,7 +305,7 @@ function InnerMapCanvas({
           officerId: chosenOfficerId,
         });
       } catch {
-        directionsRendererRef.current?.setDirections(null);
+        clearDirections();
         setRouteInfo(null);
       }
     }
@@ -237,7 +313,63 @@ function InnerMapCanvas({
     return () => {
       cancelled = true;
     };
-  }, [selectedTask, officers, selectedOfficerId]);
+  }, [selectedTask, officers, selectedOfficerId, routeOfficerId]);
+
+  // Admin route view: route through all tasks assigned to the chosen officer (for current filtered tasks list)
+  React.useEffect(() => {
+    let cancelled = false;
+    async function calcAdmin() {
+      if (!mapRef.current || !routeOfficerId) return;
+
+      const off = officers.find((o) => o.id === routeOfficerId);
+      const dayTasks = tasks.filter((t) => t.assignedTo === routeOfficerId);
+      if (!off || dayTasks.length === 0) {
+        clearDirections();
+        setRouteInfo(null);
+        return;
+      }
+
+      const origin = off.base;
+      const points = dayTasks.map((t) => ({ location: t.coords }));
+      const destination = points[points.length - 1]
+        .location as google.maps.LatLngLiteral;
+      const waypoints = points
+        .slice(0, -1)
+        .map((p) => ({ location: p.location, stopover: true as const }));
+
+      try {
+        const ds = new google.maps.DirectionsService();
+        const result = await ds.route({
+          origin,
+          destination,
+          waypoints,
+          optimizeWaypoints: true,
+          travelMode: google.maps.TravelMode.DRIVING,
+        });
+        if (cancelled) return;
+        if (result && typeof result === "object") {
+          directionsRendererRef.current?.setDirections(result);
+        } else {
+          clearDirections();
+        }
+        const legs = result.routes?.[0]?.legs ?? [];
+        const dist = legs.reduce((s, l) => s + (l.distance?.value ?? 0), 0);
+        const dur = legs.reduce((s, l) => s + (l.duration?.value ?? 0), 0);
+        setRouteInfo({
+          distanceText: dist ? `${(dist / 1000).toFixed(1)} กม.` : undefined,
+          durationText: dur ? `${Math.round(dur / 60)} นาที` : undefined,
+          officerId: off.id,
+        });
+      } catch {
+        clearDirections();
+        setRouteInfo(null);
+      }
+    }
+    calcAdmin();
+    return () => {
+      cancelled = true;
+    };
+  }, [routeOfficerId, officers, tasks]);
 
   // Task marker base color → orange, officer → blue/silver
   const statusColor: Record<string, string> = {
@@ -248,23 +380,35 @@ function InnerMapCanvas({
     issue: "#ef4444",
   };
 
+  // When route mode is active, show only that officer and their tasks
+  const displayTasks = React.useMemo(
+    () => (routeOfficerId ? tasks.filter((t) => t.assignedTo === routeOfficerId) : tasks),
+    [tasks, routeOfficerId]
+  );
+  const displayOfficersRaw = React.useMemo(
+    () => (routeOfficerId ? officers.filter((o) => o.id === routeOfficerId) : officers),
+    [officers, routeOfficerId]
+  );
+
   const bounds = React.useMemo(() => {
-    const lats = tasks
+    const lats = displayTasks
       .map((t) => t.coords.lat)
-      .concat(officers.map((o) => o.base.lat));
-    const lngs = tasks
+      .concat(displayOfficersRaw.map((o) => o.base.lat));
+    const lngs = displayTasks
       .map((t) => t.coords.lng)
-      .concat(officers.map((o) => o.base.lng));
+      .concat(displayOfficersRaw.map((o) => o.base.lng));
     if (lats.length === 0 || lngs.length === 0) return null;
     const minLat = Math.min(...lats) - 0.01;
     const maxLat = Math.max(...lats) + 0.01;
     const minLng = Math.min(...lngs) - 0.01;
     const maxLng = Math.max(...lngs) + 0.01;
     return { minLat, maxLat, minLng, maxLng };
-  }, [tasks, officers]);
+  }, [displayTasks, displayOfficersRaw]);
 
   // If all officer bases are identical/nearby, scatter them for display only
   const mapOfficers = React.useMemo(() => {
+    // If route mode, just return the selected officer without jitter
+    if (routeOfficerId) return displayOfficersRaw;
     if (!officers.length) return officers;
     const unique = new Set(
       officers.map((o) => `${o.base.lat.toFixed(4)},${o.base.lng.toFixed(4)}`)
@@ -285,7 +429,7 @@ function InnerMapCanvas({
         lng: center.lng + jitter(0.03) + i * 0.0001,
       },
     }));
-  }, [officers, tasks]);
+  }, [officers, tasks, routeOfficerId, displayOfficersRaw]);
 
   React.useEffect(() => {
     if (!mapRef.current || !bounds) return;
@@ -324,7 +468,7 @@ function InnerMapCanvas({
                     position={o.base}
                     title={`${o.name} ${o.zoneLabel ?? ""}`}
                     zIndex={isChosen ? 2000 : 1200}
-                    onClick={() => setSelectedOfficerId(o.id)}
+                    onClick={() => handleOfficerClick(o.id)}
                   >
                     <div className="flex items-center -translate-y-1">
                       <Pin
@@ -362,7 +506,7 @@ function InnerMapCanvas({
                           }
                         : undefined
                     }
-                    onClick={() => setSelectedOfficerId(o.id)}
+                    onClick={() => handleOfficerClick(o.id)}
                   />
                 );
               }))}
@@ -370,7 +514,7 @@ function InnerMapCanvas({
         {/* Tasks */}
         {showTasks &&
           (hasVector
-            ? tasks.map((t) => {
+            ? displayTasks.map((t) => {
                 const active = t.id === selectedTaskId;
                 return (
                   <AdvancedMarker
@@ -395,7 +539,7 @@ function InnerMapCanvas({
                   </AdvancedMarker>
                 );
               })
-            : tasks.map((t) => {
+            : displayTasks.map((t) => {
                 const active = t.id === selectedTaskId;
                 return (
                   <Marker
@@ -424,6 +568,30 @@ function InnerMapCanvas({
 
         {/* Route is rendered via DirectionsRenderer imperatively */}
       </Map>
+
+      {/* Bottom-center banner for Route Mode */}
+      {routeOfficerId && (
+        <div className="absolute inset-x-0 bottom-16 sm:bottom-12 md:bottom-10 lg:bottom-15 flex justify-center z-30 pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-background/95 backdrop-blur border shadow px-3 py-1.5 ring-1 ring-amber-500/30">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/90 text-amber-900 text-[12px] font-medium dark:bg-amber-400/25 dark:text-amber-50">
+              <RouteIcon className="size-4" /> โหมดเส้นทาง
+            </span>
+            <div className="text-sm font-medium truncate max-w-[200px]">
+              {officers.find((o) => o.id === routeOfficerId)?.name ?? "-"}
+            </div>
+            <div className="hidden sm:block text-[11px] text-muted-foreground">
+              กด Esc เพื่อยกเลิก
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setRouteOfficerId(null)}
+            >
+              ยกเลิกเส้นทาง
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Overlay: selected task info */}
       {selectedTask && (
@@ -538,6 +706,15 @@ function InnerMapCanvas({
           >
             เจ้าหน้าที่
           </Button>
+
+          <Button
+            size="sm"
+            variant={routeOfficerId ? "default" : "outline"}
+            onClick={() => setRouteOpen(true)}
+            title="แสดงเส้นทางเจ้าหน้าที่"
+          >
+            <RouteIcon className="size-4 mr-1" /> เส้นทาง
+          </Button>
           <Button
             size="sm"
             variant="outline"
@@ -548,7 +725,7 @@ function InnerMapCanvas({
           </Button>
         </div>
 
-        {selectedTask && etaList && (
+        {selectedTask && !routeOfficerId && etaList && (
           <div className="bg-background/95 backdrop-blur border rounded-md p-2 shadow min-w-[220px]">
             <div className="text-xs font-medium mb-1">
               เวลาเดินทาง (แนะนำลำดับแรก)
@@ -570,7 +747,11 @@ function InnerMapCanvas({
                   </div>
                   <Button
                     size="sm"
-                    variant={selectedOfficerId === it.officer.id ? "secondary" : "outline"}
+                    variant={
+                      selectedOfficerId === it.officer.id
+                        ? "secondary"
+                        : "outline"
+                    }
                     onClick={() => setSelectedOfficerId(it.officer.id)}
                   >
                     เลือก
@@ -619,6 +800,47 @@ function InnerMapCanvas({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Admin Route Modal */}
+      <Dialog open={routeOpen} onOpenChange={setRouteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>เส้นทางเจ้าหน้าที่ (ตามวันในตัวกรอง)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm">เลือกเจ้าหน้าที่</div>
+            <div className="flex items-center gap-2">
+              <Select
+                value={routeOfficerId ?? ""}
+                onValueChange={(v) => setRouteOfficerId(v || null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="เลือกเจ้าหน้าที่" />
+                </SelectTrigger>
+                <SelectContent>
+                  {officers.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name} • {o.zoneLabel}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {routeOfficerId && (
+                <Button
+                  variant="outline"
+                  onClick={() => setRouteOfficerId(null)}
+                >
+                  ล้าง
+                </Button>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              ระบบจะวางเส้นทางจากฐานไปยังงานทั้งหมดของเจ้าหน้าที่ในวันที่ที่เลือกไว้
+              (ตามตัวกรอง)
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -639,6 +861,7 @@ function FallbackCanvas({
   officers,
   selectedTaskId,
   onSelectTask,
+  routeOfficerId,
 }: Props) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [size, setSize] = React.useState({ w: 800, h: 320 });
@@ -659,12 +882,15 @@ function FallbackCanvas({
     };
   }, []);
 
-  const lats = tasks
+  const ftasks = routeOfficerId ? tasks.filter((t) => t.assignedTo === routeOfficerId) : tasks;
+  const fofficers = routeOfficerId ? officers.filter((o) => o.id === routeOfficerId) : officers;
+
+  const lats = ftasks
     .map((t) => t.coords.lat)
-    .concat(officers.map((o) => o.base.lat));
-  const lngs = tasks
+    .concat(fofficers.map((o) => o.base.lat));
+  const lngs = ftasks
     .map((t) => t.coords.lng)
-    .concat(officers.map((o) => o.base.lng));
+    .concat(fofficers.map((o) => o.base.lng));
   const minLat = Math.min(...lats, 13.6);
   const maxLat = Math.max(...lats, 13.95);
   const minLng = Math.min(...lngs, 100.4);
@@ -695,7 +921,7 @@ function FallbackCanvas({
       className="relative w-full h-full min-h-[260px] rounded-md border bg-secondary/30 overflow-hidden"
     >
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,.04)_1px,transparent_1px)] bg-[size:20px_20px]" />
-      {officers.map((o) => {
+      {fofficers.map((o) => {
         const p = project(o.base.lat, o.base.lng);
         return (
           <div
@@ -708,7 +934,7 @@ function FallbackCanvas({
           </div>
         );
       })}
-      {tasks.map((t) => {
+      {ftasks.map((t) => {
         const p = project(t.coords.lat, t.coords.lng);
         const active = t.id === selectedTaskId;
         return (
