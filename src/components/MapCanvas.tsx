@@ -38,7 +38,7 @@ type Props = {
   tasks: Task[];
   officers: Officer[];
   selectedTaskId?: string | null;
-  onSelectTask?: (id: string) => void;
+  onSelectTask?: (id: string | null) => void;
   // Optional external control for admin route mode
   routeOfficerId?: string | null;
   onChangeRouteOfficerId?: (id: string | null) => void;
@@ -206,7 +206,10 @@ function InnerMapCanvas(props: Props) {
   const handleOfficerClick = React.useCallback(
     (id: string) => {
       // Allow selecting officer only when a task is selected or admin route mode is active
-      if (selectedTask || routeOfficerId) setSelectedOfficerId(id);
+      if (selectedTask || routeOfficerId) {
+        // Toggle selection: if already selected, deselect it
+        setSelectedOfficerId((prev) => (prev === id ? null : id));
+      }
     },
     [selectedTask, routeOfficerId]
   );
@@ -706,7 +709,9 @@ function InnerMapCanvas(props: Props) {
                     key={t.id}
                     position={t.coords}
                     title={`${t.patientName} • ${t.address}`}
-                    onClick={() => onSelectTask?.(t.id)}
+                    onClick={() =>
+                      onSelectTask?.(t.id === selectedTaskId ? null : t.id)
+                    }
                     zIndex={active ? 1800 : 1000}
                   >
                     <div className="flex items-center -translate-y-1">
@@ -731,7 +736,9 @@ function InnerMapCanvas(props: Props) {
                     key={t.id}
                     position={t.coords}
                     title={`${t.patientName} • ${t.address}`}
-                    onClick={() => onSelectTask?.(t.id)}
+                    onClick={() =>
+                      onSelectTask?.(t.id === selectedTaskId ? null : t.id)
+                    }
                     zIndex={active ? 999 : 600}
                     icon={
                       symbolPaths.circle
