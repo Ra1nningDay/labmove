@@ -59,7 +59,8 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey =
-    process.env.GEOCODING_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    process.env.GEOCODING_API_KEY ||
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
     return new NextResponse("API key missing", { status: 500 });
   }
@@ -123,4 +124,3 @@ export async function GET(req: NextRequest) {
     })
   );
 }
-
