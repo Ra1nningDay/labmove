@@ -4,17 +4,20 @@
 
 ## เป้าหมาย (MVP)
 - แสดงรายการงาน (tasks) และเจ้าหน้าที่ (officers) พร้อมข้อมูลพื้นฐาน
-- แสดงจุดบนแผนที่อย่างง่าย (MapCanvas แบบ projected bounding box — ไม่ใช้ผู้ให้บริการแผนที่จริง)
-- คำนวณระยะทางระหว่างฐานเจ้าหน้าที่กับจุดตรวจด้วย Haversine (กิโลเมตร)
+- แสดงจุดบนแผนที่ด้วย Google Maps เมื่อมี API key และ fallback เป็นแผนที่แบบ canvas เมื่อไม่มี
+- คำนวณระยะทางระหว่างฐานเจ้าหน้าที่กับจุดตรวจด้วย Haversine (กิโลเมตร) และแนะนำ ETA/ระยะทางด้วย Google Distance Matrix เมื่อใช้ Google Maps
 - ใช้ป้ายสถานะ (Status Badge) พร้อมสี/ไอคอนตามสถานะ
 - เลือกงานจากแผนที่หรือจากลิสต์ เพื่อดูรายละเอียด/มอบหมายเจ้าหน้าที่
 - รองรับการกรอง/ค้นหาเบื้องต้น (เช่น วันที่ สถานะ คำค้นชื่อ/ที่อยู่)
+- เพิ่ม/แก้ไขข้อมูลแบบ mock:
+  - เพิ่มงานใหม่ (AddTask)
+  - เพิ่มเจ้าหน้าที่ใหม่ (AddOfficer) พร้อมพิกัดฐาน
+– โหมดผู้ดูแล (Admin Route Mode): เลือกเจ้าหน้าที่เพื่อแสดงเส้นทางรวมของงานในวันนั้น (opt-in)
 
 ## ไม่อยู่ในขอบเขต (MVP)
-- ไม่มีการเชื่อมต่อ API จริง, Auth, หรือ Database
-- ไม่มีการคำนวณเส้นทาง/เวลาเดินทางจริง (routing/ETA)
+- ไม่มีการเชื่อมต่อ API จริง, Auth, หรือ Database (ข้อมูลเป็น mock/in-memory)
 - ไม่มีการบันทึกข้อมูลถาวร (refresh แล้วข้อมูลหาย)
-- ไม่มีแผนที่จริง (Mapbox/Google Maps) — ใช้ canvas/projection แบบง่ายแทน
+- Routing/ETA เป็นฝั่ง client-only เพื่อประกอบ UI เท่านั้น (ไม่มี backend optimization)
 
 ---
 
@@ -157,9 +160,19 @@ src/
     OfficerList.tsx
     AssignmentDrawer.tsx    // หรือ Modal
     Filters.tsx             // Search/Date/Status
+    GoogleMapsProvider.tsx  // vis.gl APIProvider wrapper
+    add/
+      AddTaskDialog.tsx
+      AddOfficerDialog.tsx
   lib/
     types.ts
     utils.ts                // haversineKm และ helper
+    mock.ts                 // OFFICERS, INITIAL_TASKS
+    mapStyles.ts            // optional JSON styles
+  store/
+    providers.tsx           // Context providers compose
+    tasks.tsx               // useTasks()
+    officers.tsx            // useOfficers()
 ```
 
 > หากใช้ Pages Router ให้ย้าย `page.tsx` ไป `pages/index.tsx` และตั้งค่าให้สอดคล้อง
@@ -168,7 +181,7 @@ src/
 
 ## พฤติกรรมและ State หลัก
 - State หลักอยู่ที่หน้า `page.tsx` (client component):
-  - `tasks`, `officers`, `selectedTaskId`, `query` (คำค้น/ตัวกรอง), ฯลฯ
+  - `tasks`, `officers`, `selectedTaskId`, `query` (ตัวกรอง), และ state ของโหมดเส้นทาง `routeOfficerId`
 - ตัวกรอง:
   - วันที่: เปรียบเทียบ `task.date` กับวันที่ที่เลือก (รูปแบบ YYYY-MM-DD)
   - สถานะ: filter ตาม `task.status`
@@ -177,9 +190,16 @@ src/
   - มอบหมาย: `task.assignedTo = officer.id`, set `status = 'assigned'`
   - เริ่มงาน: `assigned -> in_progress`
   - สำเร็จ: `in_progress -> done`
-  - ติดปัญหา: ตั้ง `status = 'issue'` (อนุญาตจากทุกสถานะย่อยตาม UX ที่ออกแบบ)
-- การคำนวณระยะทาง:
-  - แสดงระยะจาก `officer.base` ไปยัง `task.coords` ของงานที่ถูกเลือก (หรือของแต่ละรายการงานในลิสต์)
+  - ติดปัญหา: ตั้ง `status = 'issue'`
+- การคำนวณระยะทาง/เส้นทาง:
+  - Google Maps mode: ใช้ Distance Matrix เพื่อแนะนำ ETA/ระยะทาง และ Directions เพื่อวาดเส้นทาง
+  - Fallback canvas: แสดง marker/selection เท่านั้น (ไม่วาดเส้นทาง)
+- โหมดเส้นทาง (Admin Route Mode):
+  - เปิดจากปุ่ม “เส้นทาง” ที่แผนที่ หรือจากแท็บ “เจ้าหน้าที่” ในลิสต์
+  - เมื่อเปิด จะซ่อน marker ทั้งหมดที่ไม่เกี่ยวข้อง แสดงเฉพาะฐานของเจ้าหน้าที่ที่เลือก และงานที่ `assignedTo` เป็นเจ้าหน้าที่นั้นในวันที่ที่กำลังกรองอยู่
+  - แสดงแบนเนอร์กึ่งล่างกลางพร้อมชื่อเจ้าหน้าที่ และปุ่ม “ยกเลิกเส้นทาง”; กด Esc เพื่อออกได้
+  - ขณะเปิดโหมดนี้จะซ่อนแผงแนะนำ ETA รายบุคคล (ใช้ได้เฉพาะโหมดทั่วไป)
+  - ป้องกันการสลับเส้นทางผิดพลาด: คลิก marker เจ้าหน้าที่จะไม่สลับ หากยังไม่ได้เลือกงานและไม่ได้อยู่ในโหมดเส้นทาง
 
 ---
 
@@ -241,19 +261,23 @@ export default function Page() {
 - เปิดหน้า Dashboard แล้วเห็น:
   - รายการงานพร้อมสถานะ, รายละเอียดสั้นๆ และปุ่มมอบหมาย
   - รายการเจ้าหน้าที่พร้อมโซน/เบอร์ และระยะไปงานที่เลือกได้
-  - แผนที่อย่างง่ายพร้อมจุดงาน/ฐานเจ้าหน้าที่; คลิกจุดเพื่อ select ได้
+  - แผนที่ (Google Maps ถ้ามี key มิฉะนั้น fallback canvas) พร้อมจุดงาน/ฐานเจ้าหน้าที่; คลิกจุดเพื่อ select ได้
 - ค้นหาและกรองทำงานตามคีย์เวิร์ด/วันที่/สถานะ
+- เพิ่มงาน/เพิ่มเจ้าหน้าที่ จาก TopNav ได้
 - กดมอบหมายแล้วสถานะเปลี่ยนเป็น `assigned` และแสดงผู้รับผิดชอบ
 - เปลี่ยนสถานะได้ตาม flow ที่กำหนด (assigned -> in_progress -> done / issue)
-- ไม่มีการเรียก API ภายนอก (mock data เท่านั้น)
+- โหมดเส้นทาง (Admin):
+  - เลือกเจ้าหน้าที่เพื่อวาดเส้นทางรวมของงานที่ได้รับมอบหมายในวันนั้น
+  - ระหว่างโหมดนี้ ซ่อน marker ที่ไม่เกี่ยวข้อง และมีแบนเนอร์แจ้งสถานะ พร้อมปุ่มยกเลิก/กด Esc เพื่อปิด
+- ไม่มีการเรียก API ภายนอกด้านข้อมูลงาน/เจ้าหน้าที่ (mock data เท่านั้น)
 
 ---
 
 ## งานถัดไป (หลัง MVP)
 - เชื่อมต่อ Backend/API (REST/GraphQL) + SWR/React Query สำหรับ fetch/cache
 - เพิ่ม Auth และสิทธิ์การใช้งาน
-- เปลี่ยน MapCanvas ไปใช้ผู้ให้บริการแผนที่จริง (Mapbox/Google Maps)
-- คำนวณเส้นทาง/เวลา (routing/ETA) จาก provider จริง
+- ปรับปรุงแผนที่: ปรับใช้ Map ID/Vector style ที่สอดคล้อง, clustering, offline cache
+- Routing ขั้นสูง: บันทึก/แก้ไขเส้นทาง, constraint optimization ฝั่ง server
 - บันทึกข้อมูลถาวร และเพิ่มเหตุการณ์/บันทึกผลตรวจ
 - รองรับ Realtime (WebSocket) สำหรับอัปเดตสถานะ/คิวงาน
 - เพิ่มการกำหนดโซน/ตารางเวร/ความสามารถของเจ้าหน้าที่ในการจัดสรรอัตโนมัติ
@@ -266,16 +290,21 @@ export default function Page() {
 - เพิ่ม optional deps หากต้องการ:
   - `lucide-react` สำหรับไอคอน
   - `framer-motion` สำหรับ animation
-- สร้างไฟล์ตามโครงที่แนะนำ และคัดลอก mock data/ฟังก์ชันจากส่วนนี้ไปยัง `lib/` และ `components/`
+  - `@vis.gl/react-google-maps` สำหรับ Google Maps integration
+- Environment variables (optional สำหรับ Google Maps):
+  - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (จำเป็นเพื่อเปิด Google Maps mode)
+  - `NEXT_PUBLIC_GOOGLE_MAP_ID` / `_MINIMAL` / `_CLEAN` / `_DARK` (ถ้ามี Map ID)
+- สร้างไฟล์ตามโครงและคัดลอก mock data/ฟังก์ชันจากส่วนนี้ไปยัง `lib/` และ `components/`
 
 > โค้ดจริงในโปรเจคอาจใช้ `pnpm`/`npm`/`yarn` ตามที่มีอยู่แล้วใน `package.json` ของทีม
 
 ---
 
 ## หมายเหตุด้านเทคนิคของ MapCanvas
-- เป็นการ project แบบ linear ภายใน bounding box ที่คำนวณจาก tasks + officers.base
-- ไม่ได้รองรับความโค้งของโลก/การแปลงพิกัดเชิงแผนที่จริง จึงไม่เหมาะกับพื้นที่กว้างมาก แต่เพียงพอกับพื้นที่เมืองใน MVP
+- โหมด Google Maps: ใช้ `@vis.gl/react-google-maps` (APIProvider), AdvancedMarker/Marker, Distance Matrix, DirectionsRenderer
+- โหมด Fallback: project แบบ linear ภายใน bounding box จาก tasks + officers.base (ไม่มีเส้นทาง)
 - ปรับขนาดตาม container (ใช้ `getBoundingClientRect` และ state เก็บขนาด)
+- ความทนทาน: การล้างเส้นทางใช้วิธี setDirections ด้วย `{ routes: [] }` แทน `null` เพื่อหลีกเลี่ยง InvalidValueError
 
 ---
 
