@@ -25,7 +25,13 @@ type Props = {
   onAssign: (taskId: string, officerId: string) => void;
 };
 
-export function AssignmentDrawer({ open, onOpenChange, task, officers, onAssign }: Props) {
+export function AssignmentDrawer({
+  open,
+  onOpenChange,
+  task,
+  officers,
+  onAssign,
+}: Props) {
   const { tasks } = useTasks();
 
   const [q, setQ] = React.useState("");
@@ -63,8 +69,9 @@ export function AssignmentDrawer({ open, onOpenChange, task, officers, onAssign 
             : undefined;
         if (g?.maps?.DistanceMatrixService) {
           const svc = new g.maps.DistanceMatrixService();
+          const validOfficers = officers.filter((o) => o.base);
           const res = await svc.getDistanceMatrix({
-            origins: officers.map((o) => o.base),
+            origins: validOfficers.map((o) => o.base!),
             destinations: [task.coords],
             travelMode: g.maps.TravelMode.DRIVING,
           });
@@ -73,27 +80,31 @@ export function AssignmentDrawer({ open, onOpenChange, task, officers, onAssign 
           const list = rows.map((row, i) => {
             const el = row.elements?.[0];
             return {
-              officer: officers[i],
+              officer: validOfficers[i],
               durationText: el?.duration?.text,
               durationValue: el?.duration?.value,
               distanceText: el?.distance?.text,
               distanceValue: el?.distance?.value,
             };
           });
-          list.sort((a, b) => (a.durationValue ?? 1e12) - (b.durationValue ?? 1e12));
+          list.sort(
+            (a, b) => (a.durationValue ?? 1e12) - (b.durationValue ?? 1e12)
+          );
           setEtaList(list);
         } else {
           // Fallback: straight line + naive speed
-          const list = officers.map((o) => {
-            const km = haversineKm(o.base, task.coords);
+          const validOfficers = officers.filter((o) => o.base);
+          const list = validOfficers.map((o) => {
+            const km = haversineKm(o.base!, task.coords);
             const speedKmh = 35; // city average
             const hours = km / speedKmh;
             const secs = Math.round(hours * 3600);
             return {
               officer: o,
-              distanceText: `${km.toFixed(1)} km` ,
+              distanceText: `${km.toFixed(1)} km`,
               distanceValue: Math.round(km * 1000),
-              durationText: secs < 60 ? `${secs}s` : `${Math.round(secs/60)} mins`,
+              durationText:
+                secs < 60 ? `${secs}s` : `${Math.round(secs / 60)} mins`,
               durationValue: secs,
             };
           });
@@ -121,7 +132,9 @@ export function AssignmentDrawer({ open, onOpenChange, task, officers, onAssign 
     const ql = q.trim().toLowerCase();
     return list.filter(({ officer }) => {
       if (!ql) return true;
-      const s = `${officer.name} ${officer.zoneLabel ?? ""} ${officer.phone ?? ""}`.toLowerCase();
+      const s = `${officer.name} ${officer.zoneLabel ?? ""} ${
+        officer.phone ?? ""
+      }`.toLowerCase();
       return s.includes(ql);
     });
   }, [etaList, officers, q]);
@@ -132,7 +145,9 @@ export function AssignmentDrawer({ open, onOpenChange, task, officers, onAssign 
         <DrawerHeader>
           <DrawerTitle>มอบหมายงาน</DrawerTitle>
           <DrawerDescription>
-            {task ? `${task.patientName} • ${task.address}` : "ไม่พบงานที่เลือก"}
+            {task
+              ? `${task.patientName} • ${task.address}`
+              : "ไม่พบงานที่เลือก"}
           </DrawerDescription>
         </DrawerHeader>
         <div className="px-4 pb-3 space-y-2">
@@ -165,7 +180,9 @@ export function AssignmentDrawer({ open, onOpenChange, task, officers, onAssign 
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <div className="text-sm font-medium truncate max-w-[200px]">{o.name}</div>
+                    <div className="text-sm font-medium truncate max-w-[200px]">
+                      {o.name}
+                    </div>
                     {idx === 0 && etaList.length > 0 && (
                       <Badge className="hidden sm:inline-flex">แนะนำ</Badge>
                     )}
@@ -186,7 +203,9 @@ export function AssignmentDrawer({ open, onOpenChange, task, officers, onAssign 
                 </div>
                 <Button
                   size="sm"
-                  variant={idx === 0 && etaList.length > 0 ? "secondary" : "outline"}
+                  variant={
+                    idx === 0 && etaList.length > 0 ? "secondary" : "outline"
+                  }
                   onClick={() => {
                     if (task) onAssign(task.id, o.id);
                     onOpenChange(false);
@@ -198,7 +217,9 @@ export function AssignmentDrawer({ open, onOpenChange, task, officers, onAssign 
             );
           })}
           {!filtered.length && (
-            <div className="text-sm text-muted-foreground">ไม่พบเจ้าหน้าที่</div>
+            <div className="text-sm text-muted-foreground">
+              ไม่พบเจ้าหน้าที่
+            </div>
           )}
         </div>
         <DrawerFooter>

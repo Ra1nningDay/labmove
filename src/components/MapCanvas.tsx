@@ -3,7 +3,7 @@
 import React from "react";
 import type { Task, Officer } from "@/lib/types";
 import {
-  Map,
+  Map as GoogleMap,
   AdvancedMarker,
   Pin,
   Marker,
@@ -25,6 +25,7 @@ import { EtaPanel } from "@/components/map/EtaPanel";
 import { SelectedTaskOverlay } from "@/components/map/SelectedTaskOverlay";
 import { RouteBanner } from "@/components/map/RouteBanner";
 import { FallbackCanvas } from "@/components/map/FallbackCanvas";
+import { MultiOfficerSelector } from "@/components/map/MultiOfficerSelector";
 import {
   Select,
   SelectContent,
@@ -81,6 +82,11 @@ function InnerMapCanvas(props: Props) {
   const [routeOfficerIdInt, setRouteOfficerIdInt] = React.useState<
     string | null
   >(null);
+  // Admin multi-route mode (internal only for now)
+  const [routeOfficerIdsInt, setRouteOfficerIdsInt] = React.useState<string[]>(
+    []
+  );
+  const [routeMultiLimit, setRouteMultiLimit] = React.useState<number>(10);
   const [routeOpenInt, setRouteOpenInt] = React.useState(false);
   const routeOfficerId = routeOfficerIdProp ?? routeOfficerIdInt;
   const setRouteOfficerId = React.useCallback(
@@ -90,6 +96,7 @@ function InnerMapCanvas(props: Props) {
         : setRouteOfficerIdInt(v),
     [onChangeRouteOfficerId, setRouteOfficerIdInt]
   );
+  const routeOfficerIds = routeOfficerIdsInt; // currently only internal
   const routeOpen = routeOpenProp ?? routeOpenInt;
   const setRouteOpen = React.useCallback(
     (v: boolean) =>
@@ -127,6 +134,10 @@ function InnerMapCanvas(props: Props) {
   }> | null>(null);
   const directionsRendererRef =
     React.useRef<google.maps.DirectionsRenderer | null>(null);
+  // For multi-officer overlays, keep a renderer per officer
+  const multiDirectionsRef = React.useRef<
+    Map<string, google.maps.DirectionsRenderer>
+  >(new Map());
 
   // Clear directions without passing null into setDirections (avoids InvalidValueError)
   const clearDirections = React.useCallback(() => {
@@ -141,6 +152,16 @@ function InnerMapCanvas(props: Props) {
       try {
         dr.setMap(null);
       } catch {}
+    }
+  }, []);
+
+  const clearAllMultiDirections = React.useCallback(() => {
+    const map = multiDirectionsRef.current;
+    for (const [key, renderer] of map) {
+      try {
+        renderer.setMap(null);
+      } catch {}
+      map.delete(key);
     }
   }, []);
 
@@ -215,9 +236,10 @@ function InnerMapCanvas(props: Props) {
   React.useEffect(() => {
     let cancelled = false;
     async function calc() {
-      // Skip task routing when admin route mode is active
-      if (routeOfficerId) {
+      // Skip task routing when admin route mode is active (single or multi)
+      if (routeOfficerId || routeOfficerIds.length > 0) {
         clearDirections();
+        clearAllMultiDirections();
         setRouteInfo(null);
         setEtaList(null);
         return;
@@ -248,8 +270,9 @@ function InnerMapCanvas(props: Props) {
       // Also compute ETA list and pick best when not already assigned
       try {
         const svc = new google.maps.DistanceMatrixService();
+        const validOfficers = officers.filter((o) => o.base);
         const res = await svc.getDistanceMatrix({
-          origins: officers.map((o) => o.base),
+          origins: validOfficers.map((o) => o.base!),
           destinations: [selectedTask.coords],
           travelMode: google.maps.TravelMode.DRIVING,
           avoidHighways: false,
@@ -259,7 +282,7 @@ function InnerMapCanvas(props: Props) {
         const list = rows.map((row, i) => {
           const el = row.elements?.[0];
           return {
-            officer: officers[i],
+            officer: validOfficers[i],
             durationText: el?.duration?.text,
             durationValue: el?.duration?.value,
             distanceText: el?.distance?.text,
@@ -271,16 +294,17 @@ function InnerMapCanvas(props: Props) {
         );
         if (!cancelled) setEtaList(list);
         if (!origin && list.length > 0) {
-          origin = list[0].officer.base;
+          origin = list[0].officer.base!;
           chosenOfficerId = list[0].officer.id;
         }
       } catch {
         if (!origin) {
           // Fallback to straight-line nearest if Distance Matrix fails
-          const nearest = [...officers].sort(
+          const validOfficers = officers.filter((o) => o.base);
+          const nearest = [...validOfficers].sort(
             (a, b) =>
-              distance(a.base, selectedTask.coords) -
-              distance(b.base, selectedTask.coords)
+              distance(a.base!, selectedTask.coords) -
+              distance(b.base!, selectedTask.coords)
           )[0];
           origin = nearest?.base ?? null;
           chosenOfficerId = nearest?.id;
@@ -296,7 +320,7 @@ function InnerMapCanvas(props: Props) {
       try {
         const ds = new google.maps.DirectionsService();
         const result = await ds.route({
-          origin,
+          origin: origin!,
           destination: selectedTask.coords,
           travelMode: google.maps.TravelMode.DRIVING,
           optimizeWaypoints: false,
@@ -328,18 +352,125 @@ function InnerMapCanvas(props: Props) {
     officers,
     selectedOfficerId,
     routeOfficerId,
+    routeOfficerIds,
     clearDirections,
+    clearAllMultiDirections,
   ]);
 
-  // Admin route view: route through all tasks assigned to the chosen officer (for current filtered tasks list)
+  // Admin route view: route through tasks assigned to chosen officer(s)
   React.useEffect(() => {
     let cancelled = false;
     async function calcAdmin() {
-      if (!mapRef.current || !routeOfficerId) return;
+      if (!mapRef.current) return;
+      const multi = routeOfficerIds?.length ? routeOfficerIds : [];
+
+      // If multi selection present: render multiple colored routes
+      if (multi.length > 0) {
+        // Clear single renderer
+        clearDirections();
+
+        // Palette for up to 10 officers
+        const palette = [
+          "#ef4444",
+          "#3b82f6",
+          "#10b981",
+          "#f59e0b",
+          "#8b5cf6",
+          "#06b6d4",
+          "#f43f5e",
+          "#22c55e",
+          "#eab308",
+          "#6366f1",
+        ];
+
+        const ds = new google.maps.DirectionsService();
+        const used = new Set<string>();
+        // Cleanup any stale renderers
+        for (const [k, r] of multiDirectionsRef.current) {
+          if (!multi.includes(k)) {
+            try {
+              r.setMap(null);
+            } catch {}
+            multiDirectionsRef.current.delete(k);
+          }
+        }
+
+        for (
+          let idx = 0;
+          idx < Math.min(multi.length, routeMultiLimit);
+          idx++
+        ) {
+          if (cancelled) break;
+          const id = multi[idx];
+          const off = officers.find((o) => o.id === id);
+          const dayTasks = tasks.filter((t) => t.assignedTo === id);
+          if (!off || !off.base || dayTasks.length === 0) continue;
+          used.add(id);
+          const origin = off.base;
+          const points = dayTasks.map((t) => ({ location: t.coords }));
+          const destination = points[points.length - 1]
+            .location as google.maps.LatLngLiteral;
+          const waypoints = points
+            .slice(0, -1)
+            .map((p) => ({ location: p.location, stopover: true as const }));
+
+          try {
+            const result = await ds.route({
+              origin,
+              destination,
+              waypoints,
+              optimizeWaypoints: true,
+              travelMode: google.maps.TravelMode.DRIVING,
+            });
+            if (cancelled) break;
+            // Get or create renderer for this officer
+            let r = multiDirectionsRef.current.get(id);
+            if (!r) {
+              r = new google.maps.DirectionsRenderer({
+                map: mapRef.current!,
+                suppressMarkers: true,
+                preserveViewport: true,
+                polylineOptions: {
+                  strokeColor: palette[idx % palette.length],
+                  strokeOpacity: 0.95,
+                  strokeWeight: 4,
+                },
+              });
+              multiDirectionsRef.current.set(id, r);
+            } else {
+              // Update color if needed
+              r.setOptions({
+                polylineOptions: {
+                  strokeColor: palette[idx % palette.length],
+                  strokeOpacity: 0.95,
+                  strokeWeight: 4,
+                },
+              });
+              r.setMap(mapRef.current!);
+            }
+            r.setDirections(result);
+          } catch {
+            const r = multiDirectionsRef.current.get(id);
+            if (r) {
+              try {
+                r.setMap(null);
+              } catch {}
+              multiDirectionsRef.current.delete(id);
+            }
+          }
+        }
+
+        // No single route info for multi-selection; clear summary
+        setRouteInfo(null);
+        return;
+      }
+
+      // Single selection mode
+      if (!routeOfficerId) return;
 
       const off = officers.find((o) => o.id === routeOfficerId);
       const dayTasks = tasks.filter((t) => t.assignedTo === routeOfficerId);
-      if (!off || dayTasks.length === 0) {
+      if (!off || !off.base || dayTasks.length === 0) {
         clearDirections();
         setRouteInfo(null);
         return;
@@ -363,6 +494,8 @@ function InnerMapCanvas(props: Props) {
           travelMode: google.maps.TravelMode.DRIVING,
         });
         if (cancelled) return;
+        // Clear multi renderers if any were left
+        clearAllMultiDirections();
         if (result && typeof result === "object") {
           directionsRendererRef.current?.setDirections(result);
         } else {
@@ -385,7 +518,15 @@ function InnerMapCanvas(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [routeOfficerId, officers, tasks, clearDirections]);
+  }, [
+    routeOfficerId,
+    routeOfficerIds,
+    officers,
+    tasks,
+    clearDirections,
+    clearAllMultiDirections,
+    routeMultiLimit,
+  ]);
 
   // Task marker base color → orange, officer → blue/silver
   const statusColor: Record<string, string> = {
@@ -397,28 +538,30 @@ function InnerMapCanvas(props: Props) {
   };
 
   // When route mode is active, show only that officer and their tasks
-  const displayTasks = React.useMemo(
-    () =>
-      routeOfficerId
-        ? tasks.filter((t) => t.assignedTo === routeOfficerId)
-        : tasks,
-    [tasks, routeOfficerId]
-  );
-  const displayOfficersRaw = React.useMemo(
-    () =>
-      routeOfficerId
-        ? officers.filter((o) => o.id === routeOfficerId)
-        : officers,
-    [officers, routeOfficerId]
-  );
+  const displayTasks = React.useMemo(() => {
+    if (routeOfficerId)
+      return tasks.filter((t) => t.assignedTo === routeOfficerId);
+    if (routeOfficerIds.length > 0)
+      return tasks.filter(
+        (t) => t.assignedTo && routeOfficerIds.includes(t.assignedTo)
+      );
+    return tasks;
+  }, [tasks, routeOfficerId, routeOfficerIds]);
+  const displayOfficersRaw = React.useMemo(() => {
+    if (routeOfficerId) return officers.filter((o) => o.id === routeOfficerId);
+    if (routeOfficerIds.length > 0)
+      return officers.filter((o) => routeOfficerIds.includes(o.id));
+    return officers;
+  }, [officers, routeOfficerId, routeOfficerIds]);
 
   const bounds = React.useMemo(() => {
+    const officersWithBase = displayOfficersRaw.filter((o) => o.base);
     const lats = displayTasks
       .map((t) => t.coords.lat)
-      .concat(displayOfficersRaw.map((o) => o.base.lat));
+      .concat(officersWithBase.map((o) => o.base!.lat));
     const lngs = displayTasks
       .map((t) => t.coords.lng)
-      .concat(displayOfficersRaw.map((o) => o.base.lng));
+      .concat(officersWithBase.map((o) => o.base!.lng));
     if (lats.length === 0 || lngs.length === 0) return null;
     const minLat = Math.min(...lats) - 0.01;
     const maxLat = Math.max(...lats) + 0.01;
@@ -429,29 +572,45 @@ function InnerMapCanvas(props: Props) {
 
   // If all officer bases are identical/nearby, scatter them for display only
   const mapOfficers = React.useMemo(() => {
-    // If route mode, just return the selected officer without jitter
-    if (routeOfficerId) return displayOfficersRaw;
+    // If route mode, just return the selected officer(s) without jitter
+    if (routeOfficerId || routeOfficerIds.length > 0) return displayOfficersRaw;
     if (!officers.length) return officers;
+    const officersWithBase = officers.filter((o) => o.base);
     const unique = new Set(
-      officers.map((o) => `${o.base.lat.toFixed(4)},${o.base.lng.toFixed(4)}`)
+      officersWithBase.map(
+        (o) => `${o.base!.lat.toFixed(4)},${o.base!.lng.toFixed(4)}`
+      )
     );
-    if (unique.size > Math.max(2, Math.floor(officers.length / 3)))
+    if (unique.size > Math.max(2, Math.floor(officersWithBase.length / 3)))
       return officers;
-    const center = tasks.length
+    const tasksWithCoords = displayTasks.filter((t) => t.coords);
+    const center = tasksWithCoords.length
       ? {
-          lat: tasks.reduce((s, t) => s + t.coords.lat, 0) / tasks.length,
-          lng: tasks.reduce((s, t) => s + t.coords.lng, 0) / tasks.length,
+          lat:
+            tasksWithCoords.reduce((s, t) => s + t.coords!.lat, 0) /
+            tasksWithCoords.length,
+          lng:
+            tasksWithCoords.reduce((s, t) => s + t.coords!.lng, 0) /
+            tasksWithCoords.length,
         }
       : { lat: 13.7563, lng: 100.5018 };
     const jitter = (r: number) => (Math.random() * 2 - 1) * r;
     return officers.map((o, i) => ({
       ...o,
-      base: {
-        lat: center.lat + jitter(0.03) + i * 0.0001,
-        lng: center.lng + jitter(0.03) + i * 0.0001,
-      },
+      base: o.base
+        ? {
+            lat: center.lat + jitter(0.03) + i * 0.0001,
+            lng: center.lng + jitter(0.03) + i * 0.0001,
+          }
+        : undefined,
     }));
-  }, [officers, tasks, routeOfficerId, displayOfficersRaw]);
+  }, [
+    officers,
+    displayTasks,
+    routeOfficerId,
+    routeOfficerIds,
+    displayOfficersRaw,
+  ]);
 
   React.useEffect(() => {
     if (!mapRef.current || !bounds) return;
@@ -464,7 +623,7 @@ function InnerMapCanvas(props: Props) {
 
   return (
     <div className="relative w-full h-full min-h-[320px] rounded-md border overflow-hidden">
-      <Map
+      <GoogleMap
         defaultZoom={11}
         defaultCenter={center}
         gestureHandling="greedy"
@@ -481,57 +640,61 @@ function InnerMapCanvas(props: Props) {
         {/* Officers */}
         {showOfficers &&
           (hasVector
-            ? mapOfficers.map((o) => {
-                const isChosen =
-                  routeInfo?.officerId === o.id || selectedOfficerId === o.id;
-                return (
-                  <AdvancedMarker
-                    key={o.id}
-                    position={o.base}
-                    title={`${o.name} ${o.zoneLabel ?? ""}`}
-                    zIndex={isChosen ? 2000 : 1200}
-                    onClick={() => handleOfficerClick(o.id)}
-                  >
-                    <div className="flex items-center -translate-y-1">
-                      <Pin
-                        background={isChosen ? "#2563eb" : "#3b82f6"}
-                        borderColor="#ffffff"
-                        glyphColor="#ffffff"
-                        scale={isChosen ? 1.2 : 1}
-                      />
-                      <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[160px] truncate">
-                        {o.name}
-                        {selectedOfficerId === o.id ? " • กำลังเลือก" : ""}
-                      </span>
-                    </div>
-                  </AdvancedMarker>
-                );
-              })
-            : mapOfficers.map((o) => {
-                const isChosen =
-                  routeInfo?.officerId === o.id || selectedOfficerId === o.id;
-                return (
-                  <Marker
-                    key={o.id}
-                    position={o.base}
-                    title={`${o.name} ${o.zoneLabel ?? ""}`}
-                    zIndex={isChosen ? 1000 : 600}
-                    icon={
-                      symbolPaths.arrow
-                        ? {
-                            path: symbolPaths.arrow,
-                            fillColor: isChosen ? "#2563eb" : "#3b82f6",
-                            fillOpacity: 1,
-                            strokeColor: "#ffffff",
-                            strokeWeight: 1,
-                            scale: isChosen ? 7 : 5,
-                          }
-                        : undefined
-                    }
-                    onClick={() => handleOfficerClick(o.id)}
-                  />
-                );
-              }))}
+            ? mapOfficers
+                .filter((o) => o.base)
+                .map((o) => {
+                  const isChosen =
+                    routeInfo?.officerId === o.id || selectedOfficerId === o.id;
+                  return (
+                    <AdvancedMarker
+                      key={o.id}
+                      position={o.base!}
+                      title={`${o.name} ${o.zoneLabel ?? ""}`}
+                      zIndex={isChosen ? 2000 : 1200}
+                      onClick={() => handleOfficerClick(o.id)}
+                    >
+                      <div className="flex items-center -translate-y-1">
+                        <Pin
+                          background={isChosen ? "#2563eb" : "#3b82f6"}
+                          borderColor="#ffffff"
+                          glyphColor="#ffffff"
+                          scale={isChosen ? 1.2 : 1}
+                        />
+                        <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[160px] truncate">
+                          {o.name}
+                          {selectedOfficerId === o.id ? " • กำลังเลือก" : ""}
+                        </span>
+                      </div>
+                    </AdvancedMarker>
+                  );
+                })
+            : mapOfficers
+                .filter((o) => o.base)
+                .map((o) => {
+                  const isChosen =
+                    routeInfo?.officerId === o.id || selectedOfficerId === o.id;
+                  return (
+                    <Marker
+                      key={o.id}
+                      position={o.base!}
+                      title={`${o.name} ${o.zoneLabel ?? ""}`}
+                      zIndex={isChosen ? 1000 : 600}
+                      icon={
+                        symbolPaths.arrow
+                          ? {
+                              path: symbolPaths.arrow,
+                              fillColor: isChosen ? "#2563eb" : "#3b82f6",
+                              fillOpacity: 1,
+                              strokeColor: "#ffffff",
+                              strokeWeight: 1,
+                              scale: isChosen ? 7 : 5,
+                            }
+                          : undefined
+                      }
+                      onClick={() => handleOfficerClick(o.id)}
+                    />
+                  );
+                }))}
 
         {/* Tasks */}
         {showTasks &&
@@ -589,7 +752,7 @@ function InnerMapCanvas(props: Props) {
               }))}
 
         {/* Route is rendered via DirectionsRenderer imperatively */}
-      </Map>
+      </GoogleMap>
 
       {/* Bottom-center banner for Route Mode */}
       {routeOfficerId && (
@@ -629,7 +792,7 @@ function InnerMapCanvas(props: Props) {
         setShowOfficers={(v) => setShowOfficers(v)}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenRoute={() => setRouteOpen(true)}
-        routeActive={!!routeOfficerId}
+        routeActive={!!routeOfficerId || routeOfficerIds.length > 0}
       />
 
       {selectedTask && !routeOfficerId && etaList && (
@@ -691,10 +854,14 @@ function InnerMapCanvas(props: Props) {
             <div className="flex items-center gap-2">
               <Select
                 value={routeOfficerId ?? ""}
-                onValueChange={(v) => setRouteOfficerId(v || null)}
+                onValueChange={(v) => {
+                  setRouteOfficerId(v || null);
+                  // If choosing single, clear multi selection for clarity
+                  if (v) setRouteOfficerIdsInt([]);
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="เลือกเจ้าหน้าที่" />
+                  <SelectValue placeholder="เลือกเจ้าหน้าที่ (โหมดเดี่ยว)" />
                 </SelectTrigger>
                 <SelectContent>
                   {officers.map((o) => (
@@ -713,6 +880,19 @@ function InnerMapCanvas(props: Props) {
                 </Button>
               )}
             </div>
+
+            <MultiOfficerSelector
+              officers={officers}
+              selectedOfficerIds={routeOfficerIds}
+              onSelectionChange={setRouteOfficerIdsInt}
+              multiLimit={routeMultiLimit}
+              onLimitChange={setRouteMultiLimit}
+              onClearAll={() => {
+                setRouteOfficerIdsInt([]);
+                clearAllMultiDirections();
+              }}
+              onSwitchToMultiMode={() => setRouteOfficerId(null)}
+            />
             <div className="text-xs text-muted-foreground">
               ระบบจะวางเส้นทางจากฐานไปยังงานทั้งหมดของเจ้าหน้าที่ในวันที่ที่เลือกไว้
               (ตามตัวกรอง)
