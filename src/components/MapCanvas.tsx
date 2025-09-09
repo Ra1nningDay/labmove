@@ -165,16 +165,25 @@ function InnerMapCanvas(props: Props) {
     }
   }, []);
 
-  // ESC key cancels route mode for quick exit
+  // ESC key cancels route mode for quick exit (single or multi)
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && routeOfficerId) {
-        setRouteOfficerId(null);
+      if (e.key !== "Escape") return;
+      if (routeOfficerId) setRouteOfficerId(null);
+      if (routeOfficerIds.length > 0) {
+        setRouteOfficerIdsInt([]);
+        clearAllMultiDirections();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [routeOfficerId, setRouteOfficerId]);
+  }, [
+    routeOfficerId,
+    routeOfficerIds,
+    setRouteOfficerId,
+    setRouteOfficerIdsInt,
+    clearAllMultiDirections,
+  ]);
 
   // Safe symbol paths for Marker fallback (when AdvancedMarker unavailable)
   const symbolPaths = React.useMemo(() => {
@@ -766,6 +775,15 @@ function InnerMapCanvas(props: Props) {
         <RouteBanner
           officerName={officers.find((o) => o.id === routeOfficerId)?.name}
           onCancel={() => setRouteOfficerId(null)}
+        />
+      )}
+      {routeOfficerIds.length > 0 && (
+        <RouteBanner
+          officerName={`หลายคน • ${routeOfficerIds.length} คน`}
+          onCancel={() => {
+            setRouteOfficerIdsInt([]);
+            clearAllMultiDirections();
+          }}
         />
       )}
 
