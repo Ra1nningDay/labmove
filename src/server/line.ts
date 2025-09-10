@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import type { LineReplyBody, LineMessageText } from "@/server/types/line";
+import type { LineReplyBody, LineMessage } from "@/server/types/line";
 
 const LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply";
 
@@ -13,7 +13,7 @@ export function verifyLineSignature(rawBody: string, signature: string) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-export async function replyMessage(replyToken: string, messages: LineMessageText[]) {
+export async function replyMessage(replyToken: string, messages: LineMessage[]) {
   const accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!accessToken) throw new Error("Missing LINE_CHANNEL_ACCESS_TOKEN");
   const body: LineReplyBody = { replyToken, messages };
@@ -30,4 +30,3 @@ export async function replyMessage(replyToken: string, messages: LineMessageText
     throw new Error(`LINE reply failed: ${res.status} ${text}`);
   }
 }
-

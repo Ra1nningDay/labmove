@@ -249,6 +249,30 @@ export async function upsertRowByKey(
   }
 }
 
+export async function getRowByKey(
+  title: string,
+  headers: string[],
+  keyHeader: string,
+  keyValue: string
+): Promise<Record<string, string> | null> {
+  await ensureHeader(title, headers);
+  const rowNumber = await findRowByKey(title, headers, keyHeader, keyValue);
+  if (!rowNumber) return null;
+  const { sheets, spreadsheetId }: SheetsClient = await getSheetsClient();
+  const endCol = colToA1(headers.length - 1);
+  const range = `${title}!A${rowNumber}:${endCol}${rowNumber}`;
+  const res: GoogleSheetsValuesResponse = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range,
+  });
+  const row = res.data.values?.[0] || [];
+  const rec: Record<string, string> = {};
+  headers.forEach((h, i) => {
+    rec[h] = row[i] ?? "";
+  });
+  return rec;
+}
+
 // High-level helpers for this app
 export const USERS_SHEET = "Users";
 export const SIGNUP_SESSIONS_SHEET = "SignupSessions";
@@ -284,9 +308,10 @@ export const BOOKINGS_HEADERS = [
   "created_at",
   "user_id",
   "booking_date",
-  "visit_time_window",
+  "date_preference",
   "address",
-  "tests",
+  "lat",
+  "lng",
   "images_url",
   "note",
   "status",
@@ -296,8 +321,10 @@ export const BOOKING_SESSION_HEADERS = [
   "user_id",
   "step",
   "address",
+  "lat",
+  "lng",
   "booking_date",
-  "tests",
+  "date_preference",
   "images_url",
   "last_updated",
   "status",
