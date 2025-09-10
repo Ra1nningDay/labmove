@@ -30,9 +30,7 @@ function dataDir() {
 const CSV_PATH = () => path.join(dataDir(), "signup_sessions.csv");
 
 function csvHeader() {
-  return (
-    '"user_id","step","consent","name","phone","hn","hospital","referral","last_updated","status"\n'
-  );
+  return '"user_id","step","consent","name","phone","hn","hospital","referral","last_updated","status"\n';
 }
 
 function toCsv(row: SignupSessionRow) {
@@ -52,7 +50,11 @@ function toCsv(row: SignupSessionRow) {
   return vals.map((v) => esc(String(v))).join(",");
 }
 
-export async function upsertSignupSession(userId: string, progress: SignupProgress, status?: string) {
+export async function upsertSignupSession(
+  userId: string,
+  progress: SignupProgress,
+  status?: string
+) {
   const row: SignupSessionRow = {
     user_id: userId,
     step: progress.step,
@@ -72,7 +74,7 @@ export async function upsertSignupSession(userId: string, progress: SignupProgre
       SIGNUP_SESSION_HEADERS,
       "user_id",
       userId,
-      row as any
+      row
     );
     return;
   }
@@ -82,4 +84,3 @@ export async function upsertSignupSession(userId: string, progress: SignupProgre
   if (!fs.existsSync(fp)) fs.writeFileSync(fp, csvHeader(), "utf8");
   fs.appendFileSync(fp, toCsv(row) + "\n", "utf8");
 }
-

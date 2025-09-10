@@ -7,7 +7,7 @@
 // Requires: SHEET_ID
 
 import fs from "fs";
-import path from "path";
+import { google } from "googleapis";
 
 // Type definitions for Google Sheets API
 interface GoogleSheetsMetadata {
@@ -41,7 +41,8 @@ interface ServiceAccount {
 }
 
 interface SheetsClient {
-  sheets: any; // Google Sheets API client - using any to avoid complex typing
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sheets: any; // Google Sheets API client - complex typing avoided for simplicity, using any for API compatibility
   spreadsheetId: string;
 }
 
@@ -49,13 +50,11 @@ interface RecordData {
   [key: string]: unknown;
 }
 
-let _google: typeof import("googleapis").google | null = null;
+let _google: typeof google | null = null;
 
-function loadGoogle(): typeof import("googleapis").google {
+function loadGoogle(): typeof google {
   if (_google) return _google;
-  // Lazy import to avoid loading when not needed
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { google } = require("googleapis");
+  // Lazy initialization to avoid loading when not needed
   _google = google;
   return google;
 }

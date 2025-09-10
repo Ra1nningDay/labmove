@@ -60,7 +60,8 @@ export async function appendBooking(row: BookingRow) {
     });
     return;
   }
-  const header = '"created_at","user_id","booking_date","date_preference","address","lat","lng","images_url","note","status"\n';
+  const header =
+    '"created_at","user_id","booking_date","date_preference","address","lat","lng","images_url","note","status"\n';
   const fp = BOOKINGS_CSV();
   if (!fs.existsSync(fp)) fs.writeFileSync(fp, header, "utf8");
   const esc = (s: string) => '"' + s.replace(/"/g, '""') + '"';
@@ -81,7 +82,10 @@ export async function appendBooking(row: BookingRow) {
   fs.appendFileSync(fp, line + "\n", "utf8");
 }
 
-export async function upsertBookingSession(userId: string, session: BookingSessionRow) {
+export async function upsertBookingSession(
+  userId: string,
+  session: BookingSessionRow
+) {
   const row = {
     user_id: userId,
     step: session.step,
@@ -92,7 +96,8 @@ export async function upsertBookingSession(userId: string, session: BookingSessi
     date_preference: session.datePreference || "",
     images_url: session.imagesUrl || "",
     last_updated: session.lastUpdated || new Date().toISOString(),
-    status: session.status || (session.step === "done" ? "completed" : "in_progress"),
+    status:
+      session.status || (session.step === "done" ? "completed" : "in_progress"),
   };
 
   if (sheetsConfigured()) {
@@ -101,12 +106,13 @@ export async function upsertBookingSession(userId: string, session: BookingSessi
       BOOKING_SESSION_HEADERS,
       "user_id",
       userId,
-      row as any
+      row
     );
     return;
   }
 
-  const header = '"user_id","step","address","lat","lng","booking_date","date_preference","images_url","last_updated","status"\n';
+  const header =
+    '"user_id","step","address","lat","lng","booking_date","date_preference","images_url","last_updated","status"\n';
   const fp = BOOKING_SESSIONS_CSV();
   if (!fs.existsSync(fp)) fs.writeFileSync(fp, header, "utf8");
   const esc = (s: string) => '"' + s.replace(/"/g, '""') + '"';

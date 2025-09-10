@@ -200,7 +200,10 @@ export function bookingSummaryFlex(p: BookingProgress): LineMessage {
               {
                 type: "text",
                 text: `วันที่ที่ต้องการ: ${
-                  (p as any).datePreference || p.bookingDate || "-"
+                  (p as BookingProgress & { datePreference?: string })
+                    .datePreference ||
+                  p.bookingDate ||
+                  "-"
                 }`,
                 size: "sm",
               },
@@ -213,8 +216,19 @@ export function bookingSummaryFlex(p: BookingProgress): LineMessage {
               {
                 type: "text",
                 text: `พิกัด: ${
-                  ((p as any).lat ?? "") && ((p as any).lng ?? "")
-                    ? `${(p as any).lat}, ${(p as any).lng}`
+                  ((p as BookingProgress & { lat?: number; lng?: number })
+                    .lat ??
+                    "") &&
+                  ((p as BookingProgress & { lat?: number; lng?: number })
+                    .lng ??
+                    "")
+                    ? `${
+                        (p as BookingProgress & { lat?: number; lng?: number })
+                          .lat
+                      }, ${
+                        (p as BookingProgress & { lat?: number; lng?: number })
+                          .lng
+                      }`
                     : "-"
                 }`,
                 size: "xs",

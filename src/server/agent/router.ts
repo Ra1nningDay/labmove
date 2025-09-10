@@ -9,7 +9,6 @@ import {
   clearBookingProgress,
   getRegisteredUserCached,
   upsertRegisteredUserCached,
-  getUserMeta,
   upsertUserMeta,
 } from "@/server/store/session";
 import { saveUser, findUserByLineId } from "@/server/repo/users";
@@ -113,17 +112,20 @@ export async function handleChat(
       t
     );
     // If we just left address step → try to enrich with lat/lng from text
-    if (bookingProgress?.step === "address" && nextProgress.step === "date_pref") {
+    if (
+      bookingProgress?.step === "address" &&
+      nextProgress.step === "date_pref"
+    ) {
       const fromText = parseLatLngFromText(t);
       if (fromText) {
-        (nextProgress as any).lat = fromText.lat;
-        (nextProgress as any).lng = fromText.lng;
+        nextProgress.lat = fromText.lat;
+        nextProgress.lng = fromText.lng;
       } else if (nextProgress.address && nextProgress.address.length >= 6) {
         try {
           const gc = await geocodeTextServer(nextProgress.address);
           if (gc) {
-            (nextProgress as any).lat = gc.coords.lat;
-            (nextProgress as any).lng = gc.coords.lng;
+            nextProgress.lat = gc.coords.lat;
+            nextProgress.lng = gc.coords.lng;
             // overwrite address with formatted if present
             if (gc.formattedAddress) nextProgress.address = gc.formattedAddress;
           }
@@ -136,10 +138,10 @@ export async function handleChat(
         userId,
         step: nextProgress.step,
         address: nextProgress.address,
-        lat: (nextProgress as any).lat,
-        lng: (nextProgress as any).lng,
+        lat: nextProgress.lat,
+        lng: nextProgress.lng,
         bookingDate: nextProgress.bookingDate,
-        datePreference: (nextProgress as any).datePreference,
+        datePreference: nextProgress.datePreference,
         imagesUrl: undefined,
         lastUpdated: new Date().toISOString(),
       });
@@ -163,10 +165,13 @@ export async function handleChat(
     if (nextProgress.step === "address") {
       return [
         { type: "text", text: responseText },
-        { type: "text", text: "หรือส่งตำแหน่ง (Location) จากเมนู📎ด้านซ้ายได้เลยค่ะ" },
+        {
+          type: "text",
+          text: "หรือส่งตำแหน่ง (Location) จากเมนู📎ด้านซ้ายได้เลยค่ะ",
+        },
       ];
     }
-    if ((nextProgress as any).step === "date_pref") {
+    if (nextProgress.step === "date_pref") {
       return [
         { type: "text", text: responseText },
         { type: "text", text: "ตัวอย่าง: วันนี้ / พรุ่งนี้ / 2025-12-01" },
@@ -225,7 +230,8 @@ export async function handleLocation(
 ): Promise<LineMessage[]> {
   const prog = getBookingProgress(userId);
   // Ensure booking flow exists
-  const base: BookingProgress = prog && prog.step !== "done" ? prog : { step: "address" };
+  const base: BookingProgress =
+    prog && prog.step !== "done" ? prog : { step: "address" };
   const next: BookingProgress = {
     ...base,
     step: "date_pref",
@@ -246,7 +252,10 @@ export async function handleLocation(
   } catch {}
   return [
     { type: "text", text: "✅ รับตำแหน่งแล้วค่ะ" },
-    { type: "text", text: "🗓 ต้องการวันไหนคะ (พิมพ์ ‘เร็วที่สุด’ / ‘วันนี้’ / ‘พรุ่งนี้’ หรือ YYYY-MM-DD)" },
+    {
+      type: "text",
+      text: "🗓 ต้องการวันไหนคะ (พิมพ์ ‘เร็วที่สุด’ / ‘วันนี้’ / ‘พรุ่งนี้’ หรือ YYYY-MM-DD)",
+    },
   ];
 }
 
@@ -263,8 +272,8 @@ export async function forceBookingStep(
       userId,
       step: next.step,
       address: next.address,
-      lat: (next as any).lat,
-      lng: (next as any).lng,
+      lat: next.lat,
+      lng: next.lng,
       lastUpdated: new Date().toISOString(),
     });
   } catch {}
@@ -275,6 +284,9 @@ export async function forceBookingStep(
     ];
   }
   return [
-    { type: "text", text: "กรุณาระบุวันที่ที่ต้องการ (เร็วที่สุด/วันนี้/พรุ่งนี้ หรือ YYYY-MM-DD)" },
+    {
+      type: "text",
+      text: "กรุณาระบุวันที่ที่ต้องการ (เร็วที่สุด/วันนี้/พรุ่งนี้ หรือ YYYY-MM-DD)",
+    },
   ];
 }
