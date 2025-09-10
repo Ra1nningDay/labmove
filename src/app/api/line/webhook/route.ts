@@ -8,6 +8,7 @@ import {
 import { handleSignupStep } from "@/server/agent/signupFlow";
 import type { LineWebhookEvent } from "@/server/types/line";
 import { saveUser } from "@/server/repo/users";
+import { upsertSignupSession } from "@/server/repo/sessions";
 
 export const dynamic = "force-dynamic";
 
@@ -43,16 +44,29 @@ export async function POST(req: NextRequest) {
     // Persist session state
     upsertUserProgress(userId, nextProgress);
 
+    // Persist step progress to repository (Sheets/CSV)
+    try {
+      await upsertSignupSession(userId, nextProgress);
+    } catch (e) {
+      console.error("upsertSignupSession failed", e);
+    }
+
     // Save to repository when completed
     if (completedUser) {
       await saveUser({
         lineUserId: userId,
         name: completedUser.name,
         phone: completedUser.phone,
-        address: completedUser.address,
-        consent: true,
+        hn: completedUser.hn,
+        hospital: completedUser.hospital,
+        referral: completedUser.referral,
+        consent: completedUser.consent,
       });
       clearUserProgress(userId);
+      // Mark session completed
+      try {
+        await upsertSignupSession(userId, { ...nextProgress, step: "done" });
+      } catch {}
     }
 
     // Reply message to LINE

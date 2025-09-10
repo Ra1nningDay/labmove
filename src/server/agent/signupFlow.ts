@@ -1,13 +1,32 @@
 // Simple signup flow state machine for LINE chat onboarding
 
 export type SignupProgress = {
-  step: "start" | "name" | "phone" | "address" | "confirm" | "done";
+  step:
+    | "start"
+    | "consent"
+    | "name"
+    | "phone"
+    | "hn"
+    | "hospital"
+    | "referral"
+    | "confirm"
+    | "done";
+  consent?: boolean;
   name?: string;
   phone?: string;
-  address?: string;
+  hn?: string;
+  hospital?: string;
+  referral?: string;
 };
 
-export type CompletedUser = { name: string; phone: string; address: string };
+export type CompletedUser = {
+  consent: boolean;
+  name: string;
+  phone: string;
+  hn?: string;
+  hospital?: string;
+  referral?: string;
+};
 
 function cleanPhone(input: string) {
   const digits = input.replace(/[^0-9]/g, "");
@@ -32,10 +51,31 @@ export function handleSignupStep(progress: SignupProgress | undefined, text: str
 
   if (p.step === "start") {
     if (/^สมัคร/i.test(t) || /^start/i.test(t)) {
-      return { nextProgress: { step: "name" }, responseText: "ขอทราบชื่อ-นามสกุล ผู้สมัครครับ/ค่ะ" };
+      const consentMsg =
+        "ก่อนเริ่มสมัคร กรุณายืนยันการยินยอมให้จัดเก็บและใช้ข้อมูลส่วนบุคคลเพื่อการให้บริการ\nพิมพ์ 'ยินยอม' เพื่อดำเนินการต่อ หรือ 'ยกเลิก' เพื่อยุติ";
+      return { nextProgress: { step: "consent" }, responseText: consentMsg };
     }
     // Guide user to begin
     return { nextProgress: p, responseText: "พิมพ์ 'สมัคร' เพื่อเริ่มต้นการสมัครสมาชิกครับ/ค่ะ" };
+  }
+
+  if (p.step === "consent") {
+    if (/^(ยินยอม|ยอมรับ|ตกลง|yes)$/i.test(t)) {
+      return {
+        nextProgress: { ...p, step: "name", consent: true },
+        responseText: "ขอทราบชื่อ-นามสกุล ผู้สมัครครับ/ค่ะ",
+      };
+    }
+    if (/^(ไม่ยินยอม|ไม่|no)$/i.test(t)) {
+      return {
+        nextProgress: { step: "start" },
+        responseText: "ยกเลิกขั้นตอนสมัครแล้ว หากเปลี่ยนใจ พิมพ์ 'สมัคร' เพื่อเริ่มใหม่ได้",
+      };
+    }
+    return {
+      nextProgress: p,
+      responseText: "กรุณาพิมพ์ 'ยินยอม' เพื่อดำเนินการต่อ หรือ 'ยกเลิก' เพื่อยุติ",
+    };
   }
 
   if (p.step === "name") {
@@ -47,19 +87,50 @@ export function handleSignupStep(progress: SignupProgress | undefined, text: str
   if (p.step === "phone") {
     const phone = cleanPhone(t);
     if (!phone) return { nextProgress: p, responseText: "รูปแบบเบอร์ไม่ถูกต้อง กรุณาพิมพ์ใหม่ (เช่น 0812345678)" };
-    return { nextProgress: { ...p, step: "address", phone }, responseText: "กรุณาระบุที่อยู่ครับ/ค่ะ" };
+    return { nextProgress: { ...p, step: "hn", phone }, responseText: "กรุณาระบุรหัสผู้ป่วย (HN) ถ้าไม่ทราบพิมพ์ 'ไม่มี'" };
   }
 
-  if (p.step === "address") {
-    const address = t;
-    if (address.length < 6) return { nextProgress: p, responseText: "ที่อยู่สั้นไป กรุณาพิมพ์ใหม่ให้ละเอียดขึ้นครับ/ค่ะ" };
-    const confirmText = `ตรวจสอบข้อมูล\nชื่อ: ${p.name}\nโทร: ${p.phone}\nที่อยู่: ${address}\n\nพิมพ์ 'ยืนยัน' เพื่อบันทึก หรือ 'แก้ไข' เพื่อเริ่มใหม่`;
-    return { nextProgress: { ...p, step: "confirm", address }, responseText: confirmText };
+  if (p.step === "hn") {
+    let hn = t.trim();
+    if (/^ไม่มี$|^ไม่ทราบ$|^none$|^no$/i.test(hn)) hn = "";
+    if (hn && hn.length < 3) {
+      return { nextProgress: p, responseText: "HN สั้นไป กรุณาพิมพ์ใหม่ หรือพิมพ์ 'ไม่มี'" };
+    }
+    return {
+      nextProgress: { ...p, step: "hospital", hn },
+      responseText: "โรงพยาบาลที่รักษาหรือสะดวก (พิมพ์ 'ไม่มี' ถ้าไม่ระบุ)",
+    };
+  }
+
+  if (p.step === "hospital") {
+    let hospital = t.trim();
+    if (/^ไม่มี$|^ไม่ทราบ$|^none$|^no$/i.test(hospital)) hospital = "";
+    if (hospital && hospital.length < 2) {
+      return { nextProgress: p, responseText: "ชื่อโรงพยาบาลสั้นไป กรุณาพิมพ์ใหม่ หรือพิมพ์ 'ไม่มี'" };
+    }
+    return {
+      nextProgress: { ...p, step: "referral", hospital },
+      responseText: "มีผู้แนะนำ/ฝ่ายขายหรือไม่? (ระบุชื่อได้ หรือพิมพ์ 'ไม่มี')",
+    };
+  }
+
+  if (p.step === "referral") {
+    let referral = t.trim();
+    if (/^ไม่มี$|^ไม่ทราบ$|^none$|^no$/i.test(referral)) referral = "";
+    const confirmText = `ตรวจสอบข้อมูล\nยินยอม: ${p.consent ? "ใช่" : "ไม่"}\nชื่อ: ${p.name}\nโทร: ${p.phone}\nHN: ${p.hn || "-"}\nโรงพยาบาล: ${p.hospital || "-"}\nผู้แนะนำ: ${referral || "-"}\n\nพิมพ์ 'ยืนยัน' เพื่อบันทึก หรือ 'แก้ไข' เพื่อเริ่มใหม่`;
+    return { nextProgress: { ...p, step: "confirm", referral }, responseText: confirmText };
   }
 
   if (p.step === "confirm") {
     if (/^ยืนยัน$|^confirm$/i.test(t)) {
-      const completed = { name: p.name!, phone: p.phone!, address: p.address! };
+      const completed = {
+        consent: !!p.consent,
+        name: p.name!,
+        phone: p.phone!,
+        hn: p.hn,
+        hospital: p.hospital,
+        referral: p.referral,
+      };
       return {
         nextProgress: { step: "done" },
         responseText: "บันทึกข้อมูลเรียบร้อย ขอบคุณครับ/ค่ะ",
@@ -75,4 +146,3 @@ export function handleSignupStep(progress: SignupProgress | undefined, text: str
   // done → allow restart
   return { nextProgress: { step: "start" }, responseText: "พิมพ์ 'สมัคร' เพื่อเริ่มสมัครใหม่ได้ครับ/ค่ะ" };
 }
-
