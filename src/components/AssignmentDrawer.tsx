@@ -221,7 +221,9 @@ export function AssignmentDrawer({
                 />
                 <Select
                   value={sortKey}
-                  onValueChange={(v) => setSortKey(v as any)}
+                  onValueChange={(v) =>
+                    setSortKey(v as "eta" | "distance" | "workload" | "name")
+                  }
                 >
                   <SelectTrigger className="w-[160px]">
                     <SelectValue placeholder="เรียงตาม" />
@@ -394,7 +396,9 @@ export function AssignmentDrawer({
                     onClick={() => {
                       try {
                         window.dispatchEvent(
-                          new CustomEvent("assignment:select-officer", { detail: { id: o.id } })
+                          new CustomEvent("assignment:select-officer", {
+                            detail: { id: o.id },
+                          })
                         );
                       } catch {}
                     }}

@@ -195,7 +195,7 @@ function InnerMapCanvas(props: Props) {
   // Debounce preview -> apply to selectedOfficerId (no camera move)
   React.useEffect(() => {
     if (pinnedOfficerId) return; // pinned overrides
-    const tid: any = setTimeout(() => {
+    const tid = setTimeout(() => {
       setSelectedOfficerId(previewOfficerId);
     }, 250);
     return () => clearTimeout(tid);
@@ -241,7 +241,7 @@ function InnerMapCanvas(props: Props) {
       b.extend(dest);
       // Provide some padding so both are clearly visible
       const padding: number | google.maps.Padding = 80 as number;
-      (mapRef.current as google.maps.Map).fitBounds(b, padding as any);
+      (mapRef.current as google.maps.Map).fitBounds(b, padding);
     } catch {
       try {
         const b = new google.maps.LatLngBounds();
