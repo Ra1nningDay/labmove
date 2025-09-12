@@ -75,9 +75,9 @@ function InnerMapCanvas(props: Props) {
 
   const [showTasks, setShowTasks] = React.useState(true);
   const [showOfficers, setShowOfficers] = React.useState(true);
-  const [selectedOfficerId, setSelectedOfficerId] = React.useState<string | null>(
-    null
-  );
+  const [selectedOfficerId, setSelectedOfficerId] = React.useState<
+    string | null
+  >(null);
   const [pinnedOfficerId, setPinnedOfficerId] = React.useState<string | null>(
     null
   );
@@ -182,21 +182,20 @@ function InnerMapCanvas(props: Props) {
     function onPreview(e: Event) {
       const any = e as unknown as { detail?: { id?: string | null } };
       const id = any?.detail?.id ?? null;
-      // Ignore when route mode is active or no task is selected
+      // Ignore when route mode is active
       if (routeOfficerId || routeOfficerIds.length > 0) return;
-      if (!selectedTask) return;
       if (pinnedOfficerId) return; // don't override pinned selection
       setPreviewOfficerId(id);
     }
     window.addEventListener("assignment:preview-officer", onPreview);
-    return () => window.removeEventListener("assignment:preview-officer", onPreview);
-  }, [routeOfficerId, routeOfficerIds, selectedTask, pinnedOfficerId]);
+    return () =>
+      window.removeEventListener("assignment:preview-officer", onPreview);
+  }, [routeOfficerId, routeOfficerIds, pinnedOfficerId]);
 
   // Debounce preview -> apply to selectedOfficerId (no camera move)
   React.useEffect(() => {
     if (pinnedOfficerId) return; // pinned overrides
-    let tid: any;
-    tid = setTimeout(() => {
+    const tid: any = setTimeout(() => {
       setSelectedOfficerId(previewOfficerId);
     }, 250);
     return () => clearTimeout(tid);
@@ -209,7 +208,8 @@ function InnerMapCanvas(props: Props) {
       setPreviewTaskId(any?.detail?.id ?? null);
     }
     window.addEventListener("tasklist:preview-task", onTaskPreview);
-    return () => window.removeEventListener("tasklist:preview-task", onTaskPreview);
+    return () =>
+      window.removeEventListener("tasklist:preview-task", onTaskPreview);
   }, []);
 
   // Listen for click-select events to pin selection
@@ -218,13 +218,13 @@ function InnerMapCanvas(props: Props) {
       const any = e as unknown as { detail?: { id?: string | null } };
       const id = any?.detail?.id ?? null;
       if (routeOfficerId || routeOfficerIds.length > 0) return;
-      if (!selectedTask) return;
       setPinnedOfficerId(id);
       setSelectedOfficerId(id);
     }
     window.addEventListener("assignment:select-officer", onSelect);
-    return () => window.removeEventListener("assignment:select-officer", onSelect);
-  }, [routeOfficerId, routeOfficerIds, selectedTask]);
+    return () =>
+      window.removeEventListener("assignment:select-officer", onSelect);
+  }, [routeOfficerId, routeOfficerIds]);
 
   // When a card is clicked (pinned), fit map to show officer base and task
   React.useEffect(() => {
@@ -250,7 +250,13 @@ function InnerMapCanvas(props: Props) {
         (mapRef.current as google.maps.Map).fitBounds(b);
       } catch {}
     }
-  }, [pinnedOfficerId, selectedTask, routeOfficerId, routeOfficerIds, officers]);
+  }, [
+    pinnedOfficerId,
+    selectedTask,
+    routeOfficerId,
+    routeOfficerIds,
+    officers,
+  ]);
 
   const clearAllMultiDirections = React.useCallback(() => {
     const map = multiDirectionsRef.current;
@@ -444,7 +450,8 @@ function InnerMapCanvas(props: Props) {
         if (cancelled) return;
         if (result && typeof result === "object") {
           // Update polyline style depending on preview vs pinned
-          const isPinned = Boolean(pinnedOfficerId) && chosenOfficerId === pinnedOfficerId;
+          const isPinned =
+            Boolean(pinnedOfficerId) && chosenOfficerId === pinnedOfficerId;
           const isPreview = !isPinned && Boolean(selectedOfficerId);
           directionsRendererRef.current?.setOptions({
             polylineOptions: {
@@ -855,13 +862,23 @@ function InnerMapCanvas(props: Props) {
                     <div className="flex items-center -translate-y-1">
                       <Pin
                         background={active ? "#ef4444" : statusColor[t.status]}
-                        borderColor={active ? "#111827" : hoverActive ? "#1f2937" : "#ffffff"}
+                        borderColor={
+                          active
+                            ? "#111827"
+                            : hoverActive
+                            ? "#1f2937"
+                            : "#ffffff"
+                        }
                         glyphColor="#ffffff"
                         scale={active ? 1.3 : hoverActive ? 1.15 : 1}
                       />
                       <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[200px] truncate">
                         {t.patientName}
-                        {active ? " • กำลังเลือก" : hoverActive ? " • ดูตัวอย่าง" : ""}
+                        {active
+                          ? " • กำลังเลือก"
+                          : hoverActive
+                          ? " • ดูตัวอย่าง"
+                          : ""}
                       </span>
                     </div>
                   </AdvancedMarker>
@@ -883,9 +900,15 @@ function InnerMapCanvas(props: Props) {
                       symbolPaths.circle
                         ? {
                             path: symbolPaths.circle,
-                            fillColor: active ? "#ef4444" : statusColor[t.status],
+                            fillColor: active
+                              ? "#ef4444"
+                              : statusColor[t.status],
                             fillOpacity: 1,
-                            strokeColor: active ? "#111827" : hoverActive ? "#1f2937" : "#ffffff",
+                            strokeColor: active
+                              ? "#111827"
+                              : hoverActive
+                              ? "#1f2937"
+                              : "#ffffff",
                             strokeWeight: active ? 3 : hoverActive ? 3 : 2,
                             scale: active ? 9 : hoverActive ? 8 : 6,
                           }
