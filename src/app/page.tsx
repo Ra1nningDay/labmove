@@ -45,8 +45,8 @@ export default function Page() {
     <div className="grid grid-rows-[auto_1fr] min-h-screen">
       <TopNav />
 
-      <div className="p-4 md:p-6 grid gap-4 md:grid-cols-6 sm:grid-cols-2">
-        <div className="space-y-3 overflow-auto md:h-[calc(100vh-120px)] col-span-2">
+      <div className="p-4 md:p-6 grid gap-4 md:grid-cols-6 grid-cols-2">
+        <div className="space-y-3 overflow-auto md:h-[calc(100vh-120px)] col-span-6 md:col-span-2">
           <div className="sticky top-0 z-10 bg-background/95 backdrop-blur pb-2">
             <div className="flex items-center justify-between mb-2 gap-2">
               <div className="text-xs text-muted-foreground">
@@ -103,7 +103,7 @@ export default function Page() {
           )}
         </div>
 
-        <div className="min-h-[320px]  md:h-[calc(100vh-120px)] col-span-4">
+        <div className="min-h-[320px]  md:h-[calc(100vh-120px)] md:col-span-4 col-span-6">
           <MapCanvas
             tasks={filtered}
             officers={officers}
