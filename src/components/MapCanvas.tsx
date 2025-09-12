@@ -75,9 +75,16 @@ function InnerMapCanvas(props: Props) {
 
   const [showTasks, setShowTasks] = React.useState(true);
   const [showOfficers, setShowOfficers] = React.useState(true);
-  const [selectedOfficerId, setSelectedOfficerId] = React.useState<
-    string | null
-  >(null);
+  const [selectedOfficerId, setSelectedOfficerId] = React.useState<string | null>(
+    null
+  );
+  const [pinnedOfficerId, setPinnedOfficerId] = React.useState<string | null>(
+    null
+  );
+  const [previewOfficerId, setPreviewOfficerId] = React.useState<string | null>(
+    null
+  );
+  const [previewTaskId, setPreviewTaskId] = React.useState<string | null>(null);
   // Admin route mode (can be controlled externally via props)
   const [routeOfficerIdInt, setRouteOfficerIdInt] = React.useState<
     string | null
@@ -120,6 +127,21 @@ function InnerMapCanvas(props: Props) {
     if (map) mapRef.current = map;
   }, [map]);
 
+  // When a task is selected from the left list, pan/zoom to it (non-intrusive)
+  React.useEffect(() => {
+    if (!mapRef.current) return;
+    if (!selectedTask) return;
+    // Skip when admin route mode is active; that flow has its own camera mgmt
+    if (routeOfficerId || routeOfficerIds.length > 0) return;
+    // Skip if a pinned officer is active; separate effect fits both points
+    if (pinnedOfficerId) return;
+    try {
+      mapRef.current.panTo(selectedTask.coords);
+      const z = mapRef.current.getZoom?.();
+      if (typeof z === "number" && z < 13) mapRef.current.setZoom?.(13);
+    } catch {}
+  }, [selectedTask, routeOfficerId, routeOfficerIds, pinnedOfficerId]);
+
   const [routeInfo, setRouteInfo] = React.useState<{
     distanceText?: string;
     durationText?: string;
@@ -155,6 +177,81 @@ function InnerMapCanvas(props: Props) {
     }
   }, []);
 
+  // Listen for hover-preview events from Assignment panel to highlight route
+  React.useEffect(() => {
+    function onPreview(e: Event) {
+      const any = e as unknown as { detail?: { id?: string | null } };
+      const id = any?.detail?.id ?? null;
+      // Ignore when route mode is active or no task is selected
+      if (routeOfficerId || routeOfficerIds.length > 0) return;
+      if (!selectedTask) return;
+      if (pinnedOfficerId) return; // don't override pinned selection
+      setPreviewOfficerId(id);
+    }
+    window.addEventListener("assignment:preview-officer", onPreview);
+    return () => window.removeEventListener("assignment:preview-officer", onPreview);
+  }, [routeOfficerId, routeOfficerIds, selectedTask, pinnedOfficerId]);
+
+  // Debounce preview -> apply to selectedOfficerId (no camera move)
+  React.useEffect(() => {
+    if (pinnedOfficerId) return; // pinned overrides
+    let tid: any;
+    tid = setTimeout(() => {
+      setSelectedOfficerId(previewOfficerId);
+    }, 250);
+    return () => clearTimeout(tid);
+  }, [previewOfficerId, pinnedOfficerId]);
+
+  // Listen for task list hover preview
+  React.useEffect(() => {
+    function onTaskPreview(e: Event) {
+      const any = e as unknown as { detail?: { id?: string | null } };
+      setPreviewTaskId(any?.detail?.id ?? null);
+    }
+    window.addEventListener("tasklist:preview-task", onTaskPreview);
+    return () => window.removeEventListener("tasklist:preview-task", onTaskPreview);
+  }, []);
+
+  // Listen for click-select events to pin selection
+  React.useEffect(() => {
+    function onSelect(e: Event) {
+      const any = e as unknown as { detail?: { id?: string | null } };
+      const id = any?.detail?.id ?? null;
+      if (routeOfficerId || routeOfficerIds.length > 0) return;
+      if (!selectedTask) return;
+      setPinnedOfficerId(id);
+      setSelectedOfficerId(id);
+    }
+    window.addEventListener("assignment:select-officer", onSelect);
+    return () => window.removeEventListener("assignment:select-officer", onSelect);
+  }, [routeOfficerId, routeOfficerIds, selectedTask]);
+
+  // When a card is clicked (pinned), fit map to show officer base and task
+  React.useEffect(() => {
+    if (!mapRef.current) return;
+    if (!selectedTask) return;
+    if (!pinnedOfficerId) return;
+    if (routeOfficerId || routeOfficerIds.length > 0) return;
+    const off = officers.find((o) => o.id === pinnedOfficerId);
+    const origin = off?.base ?? null;
+    const dest = selectedTask.coords;
+    try {
+      const b = new google.maps.LatLngBounds();
+      if (origin) b.extend(origin);
+      b.extend(dest);
+      // Provide some padding so both are clearly visible
+      const padding: number | google.maps.Padding = 80 as number;
+      (mapRef.current as google.maps.Map).fitBounds(b, padding as any);
+    } catch {
+      try {
+        const b = new google.maps.LatLngBounds();
+        if (origin) b.extend(origin);
+        b.extend(dest);
+        (mapRef.current as google.maps.Map).fitBounds(b);
+      } catch {}
+    }
+  }, [pinnedOfficerId, selectedTask, routeOfficerId, routeOfficerIds, officers]);
+
   const clearAllMultiDirections = React.useCallback(() => {
     const map = multiDirectionsRef.current;
     for (const [key, renderer] of map) {
@@ -173,6 +270,10 @@ function InnerMapCanvas(props: Props) {
       if (routeOfficerIds.length > 0) {
         setRouteOfficerIdsInt([]);
         clearAllMultiDirections();
+      }
+      if (!routeOfficerId && routeOfficerIds.length === 0) {
+        setPinnedOfficerId(null);
+        setSelectedOfficerId(null);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -279,47 +380,49 @@ function InnerMapCanvas(props: Props) {
         chosenOfficerId = off?.id;
       }
 
-      // Also compute ETA list and pick best when not already assigned
-      try {
-        const svc = new google.maps.DistanceMatrixService();
-        const validOfficers = officers.filter((o) => o.base);
-        const res = await svc.getDistanceMatrix({
-          origins: validOfficers.map((o) => o.base!),
-          destinations: [selectedTask.coords],
-          travelMode: google.maps.TravelMode.DRIVING,
-          avoidHighways: false,
-          avoidTolls: false,
-        });
-        const rows = res.rows || [];
-        const list = rows.map((row, i) => {
-          const el = row.elements?.[0];
-          return {
-            officer: validOfficers[i],
-            durationText: el?.duration?.text,
-            durationValue: el?.duration?.value,
-            distanceText: el?.distance?.text,
-            distanceValue: el?.distance?.value,
-          };
-        });
-        list.sort(
-          (a, b) => (a.durationValue ?? 1e12) - (b.durationValue ?? 1e12)
-        );
-        if (!cancelled) setEtaList(list);
-        if (!origin && list.length > 0) {
-          origin = list[0].officer.base!;
-          chosenOfficerId = list[0].officer.id;
-        }
-      } catch {
-        if (!origin) {
-          // Fallback to straight-line nearest if Distance Matrix fails
+      // Also compute ETA list and pick best when not already assigned or previewing
+      if (!selectedOfficerId) {
+        try {
+          const svc = new google.maps.DistanceMatrixService();
           const validOfficers = officers.filter((o) => o.base);
-          const nearest = [...validOfficers].sort(
-            (a, b) =>
-              distance(a.base!, selectedTask.coords) -
-              distance(b.base!, selectedTask.coords)
-          )[0];
-          origin = nearest?.base ?? null;
-          chosenOfficerId = nearest?.id;
+          const res = await svc.getDistanceMatrix({
+            origins: validOfficers.map((o) => o.base!),
+            destinations: [selectedTask.coords],
+            travelMode: google.maps.TravelMode.DRIVING,
+            avoidHighways: false,
+            avoidTolls: false,
+          });
+          const rows = res.rows || [];
+          const list = rows.map((row, i) => {
+            const el = row.elements?.[0];
+            return {
+              officer: validOfficers[i],
+              durationText: el?.duration?.text,
+              durationValue: el?.duration?.value,
+              distanceText: el?.distance?.text,
+              distanceValue: el?.distance?.value,
+            };
+          });
+          list.sort(
+            (a, b) => (a.durationValue ?? 1e12) - (b.durationValue ?? 1e12)
+          );
+          if (!cancelled) setEtaList(list);
+          if (!origin && list.length > 0) {
+            origin = list[0].officer.base!;
+            chosenOfficerId = list[0].officer.id;
+          }
+        } catch {
+          if (!origin) {
+            // Fallback to straight-line nearest if Distance Matrix fails
+            const validOfficers = officers.filter((o) => o.base);
+            const nearest = [...validOfficers].sort(
+              (a, b) =>
+                distance(a.base!, selectedTask.coords) -
+                distance(b.base!, selectedTask.coords)
+            )[0];
+            origin = nearest?.base ?? null;
+            chosenOfficerId = nearest?.id;
+          }
         }
       }
 
@@ -340,6 +443,30 @@ function InnerMapCanvas(props: Props) {
         });
         if (cancelled) return;
         if (result && typeof result === "object") {
+          // Update polyline style depending on preview vs pinned
+          const isPinned = Boolean(pinnedOfficerId) && chosenOfficerId === pinnedOfficerId;
+          const isPreview = !isPinned && Boolean(selectedOfficerId);
+          directionsRendererRef.current?.setOptions({
+            polylineOptions: {
+              strokeColor: "#2563eb",
+              strokeOpacity: isPreview ? 0.6 : 0.95,
+              strokeWeight: isPreview ? 4 : 5,
+              // dashed look using icons for preview
+              icons: isPreview
+                ? [
+                    {
+                      icon: {
+                        path: "M 0,-1 0,1",
+                        strokeOpacity: 1,
+                        scale: 3,
+                      } as google.maps.Symbol,
+                      offset: "0",
+                      repeat: "12px",
+                    },
+                  ]
+                : undefined,
+            },
+          });
           directionsRendererRef.current?.setDirections(result);
         } else {
           clearDirections();
@@ -363,6 +490,7 @@ function InnerMapCanvas(props: Props) {
     selectedTask,
     officers,
     selectedOfficerId,
+    pinnedOfficerId,
     routeOfficerId,
     routeOfficerIds,
     clearDirections,
@@ -713,6 +841,7 @@ function InnerMapCanvas(props: Props) {
           (hasVector
             ? displayTasks.map((t) => {
                 const active = t.id === selectedTaskId;
+                const hoverActive = !active && previewTaskId === t.id;
                 return (
                   <AdvancedMarker
                     key={t.id}
@@ -721,18 +850,18 @@ function InnerMapCanvas(props: Props) {
                     onClick={() =>
                       onSelectTask?.(t.id === selectedTaskId ? null : t.id)
                     }
-                    zIndex={active ? 1800 : 1000}
+                    zIndex={active ? 1800 : hoverActive ? 1500 : 1000}
                   >
                     <div className="flex items-center -translate-y-1">
                       <Pin
                         background={active ? "#ef4444" : statusColor[t.status]}
-                        borderColor={active ? "#111827" : "#ffffff"}
+                        borderColor={active ? "#111827" : hoverActive ? "#1f2937" : "#ffffff"}
                         glyphColor="#ffffff"
-                        scale={active ? 1.3 : 1}
+                        scale={active ? 1.3 : hoverActive ? 1.15 : 1}
                       />
                       <span className="ml-1 px-1.5 py-0.5 text-[11px] rounded bg-white/95 border shadow max-w-[200px] truncate">
                         {t.patientName}
-                        {active ? " • กำลังเลือก" : ""}
+                        {active ? " • กำลังเลือก" : hoverActive ? " • ดูตัวอย่าง" : ""}
                       </span>
                     </div>
                   </AdvancedMarker>
@@ -740,6 +869,7 @@ function InnerMapCanvas(props: Props) {
               })
             : displayTasks.map((t) => {
                 const active = t.id === selectedTaskId;
+                const hoverActive = !active && previewTaskId === t.id;
                 return (
                   <Marker
                     key={t.id}
@@ -748,18 +878,16 @@ function InnerMapCanvas(props: Props) {
                     onClick={() =>
                       onSelectTask?.(t.id === selectedTaskId ? null : t.id)
                     }
-                    zIndex={active ? 999 : 600}
+                    zIndex={active ? 999 : hoverActive ? 800 : 600}
                     icon={
                       symbolPaths.circle
                         ? {
                             path: symbolPaths.circle,
-                            fillColor: active
-                              ? "#ef4444"
-                              : statusColor[t.status],
+                            fillColor: active ? "#ef4444" : statusColor[t.status],
                             fillOpacity: 1,
-                            strokeColor: active ? "#111827" : "#ffffff",
-                            strokeWeight: active ? 3 : 2,
-                            scale: active ? 9 : 6,
+                            strokeColor: active ? "#111827" : hoverActive ? "#1f2937" : "#ffffff",
+                            strokeWeight: active ? 3 : hoverActive ? 3 : 2,
+                            scale: active ? 9 : hoverActive ? 8 : 6,
                           }
                         : undefined
                     }
