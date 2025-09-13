@@ -21,21 +21,21 @@ type Props = {
 export function OfficerList({ officers, selectedTask, onShowRoute }: Props) {
   const [hoverPreview, setHoverPreview] = React.useState<boolean>(true);
   const [isOpen, setIsOpen] = React.useState<boolean>(true);
-  
+
   React.useEffect(() => {
     try {
       const raw = localStorage.getItem("labmove:hoverPreviewOfficers");
       if (raw != null) setHoverPreview(raw === "1");
     } catch {}
   }, []);
-  
+
   React.useEffect(() => {
     try {
       const raw = localStorage.getItem("labmove:officerListCollapsed");
       if (raw != null) setIsOpen(raw !== "1");
     } catch {}
   }, []);
-  
+
   React.useEffect(() => {
     try {
       localStorage.setItem(
@@ -51,13 +51,10 @@ export function OfficerList({ officers, selectedTask, onShowRoute }: Props) {
       }
     } catch {}
   }, [hoverPreview]);
-  
+
   React.useEffect(() => {
     try {
-      localStorage.setItem(
-        "labmove:officerListCollapsed",
-        isOpen ? "0" : "1"
-      );
+      localStorage.setItem("labmove:officerListCollapsed", isOpen ? "0" : "1");
     } catch {}
   }, [isOpen]);
 
@@ -66,7 +63,7 @@ export function OfficerList({ officers, selectedTask, onShowRoute }: Props) {
       <CollapsibleTrigger className="flex items-center justify-between w-full text-xs text-muted-foreground p-2 hover:bg-accent/20 rounded transition-colors">
         <span>รายชื่อเจ้าหน้าที่ ({officers.length})</span>
         <div className="flex items-center gap-2">
-          <label 
+          <label
             className="flex items-center gap-1 select-none"
             onClick={(e) => e.stopPropagation()}
           >
@@ -78,84 +75,91 @@ export function OfficerList({ officers, selectedTask, onShowRoute }: Props) {
             />
             พรีวิวเมื่อชี้
           </label>
-          <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isOpen && "rotate-180")} />
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 transition-transform duration-200",
+              isOpen && "rotate-180"
+            )}
+          />
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="space-y-2 max-h-80 sm:max-h-none overflow-y-auto mt-2">
-        {officers.map((o) => {
-          const dist =
-            selectedTask && o.base
-              ? haversineKm(o.base, selectedTask.coords).toFixed(1)
-              : undefined;
-          return (
-            <div
-              key={o.id}
-              className="rounded-md border p-3 bg-card/50 cursor-pointer hover:bg-accent/30"
-              onMouseEnter={() => {
-                try {
-                  if (hoverPreview)
+          {officers.map((o) => {
+            const dist =
+              selectedTask && o.base
+                ? haversineKm(o.base, selectedTask.coords).toFixed(1)
+                : undefined;
+            return (
+              <div
+                key={o.id}
+                className="rounded-md border p-3 bg-card/50 cursor-pointer hover:bg-accent/30"
+                onMouseEnter={() => {
+                  try {
+                    if (hoverPreview)
+                      window.dispatchEvent(
+                        new CustomEvent("assignment:preview-officer", {
+                          detail: { id: o.id },
+                        })
+                      );
+                  } catch {}
+                }}
+                onMouseLeave={() => {
+                  try {
+                    if (hoverPreview)
+                      window.dispatchEvent(
+                        new CustomEvent("assignment:preview-officer", {
+                          detail: { id: null },
+                        })
+                      );
+                  } catch {}
+                }}
+                onClick={() => {
+                  try {
                     window.dispatchEvent(
-                      new CustomEvent("assignment:preview-officer", {
+                      new CustomEvent("assignment:select-officer", {
                         detail: { id: o.id },
                       })
                     );
-                } catch {}
-              }}
-              onMouseLeave={() => {
-                try {
-                  if (hoverPreview)
-                    window.dispatchEvent(
-                      new CustomEvent("assignment:preview-officer", {
-                        detail: { id: null },
-                      })
-                    );
-                } catch {}
-              }}
-              onClick={() => {
-                try {
-                  window.dispatchEvent(
-                    new CustomEvent("assignment:select-officer", {
-                      detail: { id: o.id },
-                    })
-                  );
-                } catch {}
-              }}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="font-medium text-sm">{o.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {o.zoneLabel} • {o.phone}
-                  </div>
-                  {!o.base && (
-                    <div className="text-xs text-amber-600">ไม่มีพิกัดฐาน</div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {dist && (
+                  } catch {}
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-sm">{o.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {dist} กม.
+                      {o.zoneLabel} • {o.phone}
                     </div>
-                  )}
-                  {onShowRoute && o.base && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onShowRoute(o.id);
-                      }}
-                    >
-                      เส้นทาง
-                    </Button>
-                  )}
+                    {!o.base && (
+                      <div className="text-xs text-amber-600">
+                        ไม่มีพิกัดฐาน
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {dist && (
+                      <div className="text-xs text-muted-foreground">
+                        {dist} กม.
+                      </div>
+                    )}
+                    {onShowRoute && o.base && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onShowRoute(o.id);
+                        }}
+                      >
+                        เส้นทาง
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
-          </div>
-        );
-      })}
+            );
+          })}
         </div>
       </CollapsibleContent>
     </Collapsible>
