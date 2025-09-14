@@ -69,6 +69,17 @@ export async function handleChat(
     ];
   }
 
+  if (/^คุยกับผู้ช่วย$|^ผู้ช่วย$|^help$|^assist$/i.test(t)) {
+    upsertUserMeta(userId, { mode: "llm" });
+    return [
+      {
+        type: "text",
+        text:
+          "ผู้ช่วยแชต: พิมพ์คำถามได้เลย\nหรือกด 'เมนู' เพื่อดูตัวเลือก",
+      },
+    ];
+  }
+
   // Continue ongoing flows first
   if (hasSignupFlow) {
     const { nextProgress, responseText, completedUser } = handleSignupStep(

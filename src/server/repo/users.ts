@@ -8,6 +8,7 @@ import {
   sheetsConfigured,
   appendRow as sheetsAppendRow,
   getRowByKey,
+  getRowsByKey,
   USERS_HEADERS,
   USERS_SHEET,
 } from "@/server/repo/sheets";
@@ -151,4 +152,94 @@ export async function findUserByLineId(lineUserId: string): Promise<UserRow | nu
   }
 
   return null;
+}
+
+export async function findUsersByLineId(
+  lineUserId: string
+): Promise<UserRow[]> {
+  if (sheetsConfigured()) {
+    const list = await getRowsByKey(
+      USERS_SHEET,
+      USERS_HEADERS,
+      "line_user_id",
+      lineUserId
+    );
+    return list.map((rec) => ({
+      lineUserId: rec["line_user_id"],
+      name: rec["name"] || "",
+      phone: rec["phone"] || "",
+      hn: rec["hn"] || "",
+      hospital: rec["hospital"] || "",
+      referral: rec["referral"] || "",
+      consent: rec["consent"] === "1" || rec["consent"] === "true",
+    }));
+  }
+
+  const fp = CSV_PATH();
+  if (!fs.existsSync(fp)) return [];
+  const content = fs.readFileSync(fp, "utf8");
+  const lines = content.split(/\r?\n/).filter(Boolean);
+  if (lines.length <= 1) return [];
+
+  function parseCsvLine(line: string): string[] {
+    const out: string[] = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cur += ch;
+        }
+      } else {
+        if (ch === ',') {
+          out.push(cur);
+          cur = "";
+        } else if (ch === '"') {
+          inQuotes = true;
+        } else {
+          cur += ch;
+        }
+      }
+    }
+    out.push(cur);
+    return out;
+  }
+
+  const header = parseCsvLine(lines[0]);
+  const idx = {
+    line_user_id: header.indexOf("line_user_id"),
+    name: header.indexOf("name"),
+    phone: header.indexOf("phone"),
+    hn: header.indexOf("hn"),
+    hospital: header.indexOf("hospital"),
+    referral: header.indexOf("referral"),
+    consent: header.indexOf("consent"),
+  } as const;
+
+  const result: UserRow[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCsvLine(lines[i]);
+    if (cols[idx.line_user_id] === lineUserId) {
+      result.push({
+        lineUserId,
+        name: cols[idx.name] || "",
+        phone: cols[idx.phone] || "",
+        hn: cols[idx.hn] || "",
+        hospital: cols[idx.hospital] || "",
+        referral: cols[idx.referral] || "",
+        consent:
+          (cols[idx.consent] || "") === "1" ||
+          (cols[idx.consent] || "").toLowerCase() === "true",
+      });
+    }
+  }
+  return result;
 }

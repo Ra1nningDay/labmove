@@ -1,6 +1,8 @@
 import type { LineMessage, LineQuickReply } from "@/server/types/line";
 import type { SignupProgress } from "@/server/agent/signupFlow";
 import type { BookingProgress } from "@/server/agent/bookingFlow";
+import type { BookingRow, BookingSessionRow } from "@/server/repo/bookings";
+import type { UserRow } from "@/server/repo/users";
 
 export function quickReplyMenu(): LineQuickReply {
   return {
@@ -275,6 +277,116 @@ export function bookingSummaryFlex(p: BookingProgress): LineMessage {
               data: JSON.stringify({ action: "booking_edit_address" }),
             },
           },
+        ],
+      },
+    },
+  };
+}
+
+export function bookingDetailsFlex(
+  p: Partial<BookingRow & BookingSessionRow>
+): LineMessage {
+  return {
+    type: "flex",
+    altText: "รายละเอียดการจองล่าสุด",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          { type: "text", text: "รายละเอียดการจอง", weight: "bold", size: "lg" },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "xs",
+            margin: "md",
+            contents: [
+              {
+                type: "text",
+                text: `วันที่นัด: ${p.bookingDate || p.datePreference || "-"}`,
+                size: "sm",
+              },
+              {
+                type: "text",
+                text: `📍 ${p.address || "-"}`,
+                size: "sm",
+                wrap: true,
+              },
+              {
+                type: "text",
+                text: `พิกัด: ${
+                  p.lat != null && p.lng != null ? `${p.lat}, ${p.lng}` : "-"
+                }`,
+                size: "xs",
+              },
+              {
+                type: "text",
+                text: `สถานะ: ${(p as any).status || "-"}`,
+                size: "sm",
+              },
+              p.note
+                ? { type: "text", text: `หมายเหตุ: ${p.note}`, size: "sm", wrap: true }
+                : { type: "text", text: "", size: "sm" },
+            ].filter((x) => (x as any).text !== ""),
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "horizontal",
+        spacing: "sm",
+        contents: [
+          {
+            type: "button",
+            style: "secondary",
+            action: {
+              type: "postback",
+              label: "แก้ไขวัน",
+              data: JSON.stringify({ action: "booking_edit_date" }),
+            },
+          },
+          {
+            type: "button",
+            style: "secondary",
+            action: {
+              type: "postback",
+              label: "แก้ไขที่อยู่",
+              data: JSON.stringify({ action: "booking_edit_address" }),
+            },
+          },
+        ],
+      },
+    },
+  };
+}
+
+export function profileListFlex(members: UserRow[]): LineMessage {
+  const items = members.slice(-5); // show last 5
+  return {
+    type: "flex",
+    altText: "โปรไฟล์สมาชิก",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          { type: "text", text: "โปรไฟล์สมาชิก", size: "lg", weight: "bold" },
+          ...items.map((m) => ({
+            type: "box",
+            layout: "vertical",
+            spacing: "xs",
+            margin: "md",
+            contents: [
+              { type: "text", text: m.name || "(ไม่มีชื่อ)", weight: "bold", size: "sm" },
+              { type: "text", text: `โทร: ${m.phone || "-"}`, size: "xs" },
+              { type: "text", text: `HN: ${m.hn || "-"}`, size: "xs" },
+              { type: "text", text: `โรงพยาบาล: ${m.hospital || "-"}`, size: "xs" },
+            ],
+          })),
         ],
       },
     },

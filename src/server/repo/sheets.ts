@@ -272,6 +272,34 @@ export async function getRowByKey(
   return rec;
 }
 
+export async function getRowsByKey(
+  title: string,
+  headers: string[],
+  keyHeader: string,
+  keyValue: string
+): Promise<Array<Record<string, string>>> {
+  await ensureHeader(title, headers);
+  const keyIndex = headers.indexOf(keyHeader);
+  if (keyIndex < 0) throw new Error(`Key header not found: ${keyHeader}`);
+  const { sheets, spreadsheetId }: SheetsClient = await getSheetsClient();
+  const endCol = colToA1(headers.length - 1);
+  const range = `${title}!A2:${endCol}`; // all rows
+  const res: GoogleSheetsValuesResponse = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range,
+  });
+  const rows = res.data.values || [];
+  const out: Array<Record<string, string>> = [];
+  for (const row of rows) {
+    if ((row[keyIndex] || '') === keyValue) {
+      const rec: Record<string, string> = {};
+      headers.forEach((h, i) => (rec[h] = row[i] ?? ''));
+      out.push(rec);
+    }
+  }
+  return out;
+}
+
 // High-level helpers for this app
 export const USERS_SHEET = "Users";
 export const SIGNUP_SESSIONS_SHEET = "SignupSessions";

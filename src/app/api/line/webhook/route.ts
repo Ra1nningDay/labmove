@@ -7,8 +7,15 @@ import {
   quickReplyMenu,
   welcomeFlex,
   consentConfirm,
+  bookingDetailsFlex,
+  profileListFlex,
 } from "@/server/lineMessages";
 import { handleLocation, forceBookingStep } from "@/server/agent/router";
+import {
+  getLatestBookingByUserId,
+  getBookingSessionByUserId,
+} from "@/server/repo/bookings";
+import { findUsersByLineId } from "@/server/repo/users";
 // Side effects (saving users/bookings, sessions) are handled inside router
 
 export const dynamic = "force-dynamic";
@@ -235,6 +242,27 @@ export async function POST(req: NextRequest) {
             quickReply: quickReplyMenu(),
           });
         await replyMessage(replyToken, messages);
+        continue;
+      }
+
+      if (payload.action === "booking_details") {
+        // Try latest booking; fall back to session
+        const latest = (await getLatestBookingByUserId(userId)) ||
+          (await getBookingSessionByUserId(userId));
+        const msg = latest
+          ? bookingDetailsFlex(latest)
+          : ({ type: "text", text: "ยังไม่มีข้อมูลการจอง", quickReply: quickReplyMenu() } as const);
+        await replyMessage(replyToken, [msg]);
+        continue;
+      }
+
+      if (payload.action === "profile_show") {
+        const members = await findUsersByLineId(userId);
+        const msg =
+          members.length > 0
+            ? profileListFlex(members)
+            : ({ type: "text", text: "ยังไม่มีข้อมูลสมาชิก กรุณาเปิด LIFF สมัครสมาชิก", quickReply: quickReplyMenu() } as const);
+        await replyMessage(replyToken, [msg]);
         continue;
       }
 

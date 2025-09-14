@@ -1,6 +1,6 @@
 LabMove Dashboard
 
-A Next.js dashboard to manage field sample collection tasks with a lightweight map, mock data, and simple assignment flow. Includes an optional LINE webhook backend to onboard users via chat.
+ A Next.js dashboard to manage field sample collection tasks with a lightweight map, mock data, and simple assignment flow. Includes an optional LINE webhook backend to onboard users via chat, plus a LIFF sample page for structured forms.
 
 Table of Contents
 - Overview
@@ -10,6 +10,7 @@ Table of Contents
 - Getting Started
 - Environment Variables
 - Development with a Tunnel (LINE Webhook)
+ - LIFF
 - Map Behavior
 - Server (LINE Onboarding)
 - Scripts
@@ -81,6 +82,7 @@ src/
     repo/users.ts
     types/line.ts
     README-agents.md
+  app/liff/page.tsx                 # LIFF sample UI (login/profile/send/share)
 ```
 
 Getting Started
@@ -105,6 +107,9 @@ NEXT_PUBLIC_GOOGLE_MAP_ID_DARK=
 # LINE webhook (optional server)
 LINE_CHANNEL_SECRET=
 LINE_CHANNEL_ACCESS_TOKEN=
+
+# LIFF (optional)
+NEXT_PUBLIC_LIFF_ID=
 ```
 Notes
 - Without `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, the app renders a fallback canvas map (no ETA/Directions).
@@ -115,8 +120,14 @@ Development with a Tunnel (LINE Webhook)
 - Example (Cloudflare):
   - Run Next.js: `npm run dev`
   - Tunnel: `cloudflared tunnel --url http://localhost:3000`
-  - Set Webhook URL in LINE Console to: `https://<your-domain>/api/line/webhook`
+- Set Webhook URL in LINE Console to: `https://<your-domain>/api/line/webhook`
 - Optional: if you open the web UI via the tunnel and load /_next/* assets, you may add `allowedDevOrigins` in `next.config` for your tunnel domain.
+
+LIFF
+- Endpoint URL (LINE console): `https://<your-domain>/liff`
+- LIFF URL to share in chat: `https://liff.line.me/<LIFF_ID>`
+- Dev tip: you can also open `https://<your-domain>/liff?liffId=<LIFF_ID>`
+- When opened inside the LINE app, the sample page supports `getProfile`, `sendMessages`, `shareTargetPicker`, and `closeWindow`.
 
 Map Behavior
 - Task-focused mode: clicking markers selects tasks; ETA panel suggests officers (Distance Matrix when available).
@@ -129,6 +140,11 @@ Server (LINE Onboarding)
 - Storage: appends rows to `data/users.csv` (created automatically). Replaceable with Google Sheets/DB.
 - See `src/server/README-agents.md` for details and environment variables.
 
+Agents & Specs
+- See `AGENTS.md` for operating rules and architecture (Intent Agent + General Chat + LIFF).
+- Intents and Flex templates are drafted in `docs/INTENTS.md` and `docs/FLEX_CATALOG.md`.
+- LIFF flow notes in `docs/LIFF_FLOWS.md`.
+
 Scripts
 - `pnpm dev` – run the app in development
 - `pnpm build` – build for production
@@ -137,4 +153,3 @@ Scripts
 
 License
 Private
-

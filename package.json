@@ -6,7 +6,13 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "richmenu:create-all": "node scripts/richmenus/index.js create-all",
+    "richmenu:list": "node scripts/richmenus/index.js list",
+    "richmenu:delete-all": "node scripts/richmenus/index.js delete-all",
+    "richmenu:delete-others": "node scripts/richmenus/index.js delete-others",
+    "richmenu:set-default": "node scripts/richmenus/index.js set-default",
+    "richmenu:upload": "node scripts/richmenus/index.js upload-image menu"
   },
   "dependencies": {
     "@line/liff": "^2.27.2",
@@ -27,7 +33,8 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.3.1",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "pngjs": "^7.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

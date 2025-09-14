@@ -18,6 +18,12 @@ Server scaffolding overview
   - ตัดสินเส้นทางระหว่าง signup / booking / assistant (LLM stub)
   - ผู้ใช้ที่ไม่พูดถึงการสมัคร/จอง จะได้ข้อความจากผู้ช่วย พร้อม Quick Replies: เมนู/จองนัด/สมัคร
 
+Planned architecture: Intent + LIFF + General Chat
+- Intent Agent: จับเจตนา (สมัคร, จอง, โปรไฟล์, เมนู, ช่วยเหลือ) แล้วตอบ Flex ที่มีปุ่มเปิด LIFF ตาม flow
+- General Chat Agent: ตอบคำถามทั่วไป/ความรู้ นอกเหนือจากเจตนาที่รองรับ
+- LIFF UI: `/liff` (ดู `src/app/liff/page.tsx`) รองรับ login/getProfile, ส่งข้อความกลับห้องแชต, และแชร์ได้
+- การ submit ข้อมูลจาก LIFF → API ฝั่งเซิร์ฟเวอร์ → บันทึกใน Sheets/DB → push สรุปกลับผู้ใช้ผ่าน Messaging API
+
 - LINE client: src/server/line.ts
   - verifyLineSignature(raw, header)
   - replyMessage(replyToken, messages)
@@ -52,7 +58,15 @@ Optional for repository (future)
   - GOOGLE_PRIVATE_KEY (use \n for newlines), or
   - GOOGLE_CREDENTIALS_JSON (JSON string or file path), or
   - GOOGLE_APPLICATION_CREDENTIALS (file path)
- - GEOCODING_API_KEY (optional; fallback to NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) for server geocoding of text addresses
+- GEOCODING_API_KEY (optional; fallback to NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) for server geocoding of text addresses
+
+Frontend (LIFF)
+- NEXT_PUBLIC_LIFF_ID: ใช้เปิดผ่าน `https://liff.line.me/<LIFF_ID>` หรือแนบเป็น query `?liffId=...`
+- Endpoint URL ของ LIFF ควรชี้ไปยัง `https://<domain>/liff`
+
+Security notes (LIFF)
+- ตรวจสอบ LIFF ID token ฝั่งเซิร์ฟเวอร์ก่อนผูกข้อมูลกับผู้ใช้ (อย่ารับ userId จาก client ตรง ๆ)
+- จำกัดขอบเขตข้อมูลส่วนบุคคลและบันทึกเฉพาะที่จำเป็น พร้อมเก็บ consent ในขั้นตอนสมัคร
 
 Notes
 - LINE requires replying within a short time window → keep processing lightweight
