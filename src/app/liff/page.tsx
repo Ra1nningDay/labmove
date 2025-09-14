@@ -51,8 +51,8 @@ export default function LiffPage() {
           } catch {}
         }
         setReady(true);
-      } catch (e: any) {
-        setError(e?.message || String(e));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
       }
     })();
     return () => {
@@ -86,8 +86,8 @@ export default function LiffPage() {
         statusMessage: p.statusMessage,
       });
       setIdToken(liff.getIDToken() || "");
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   }
 

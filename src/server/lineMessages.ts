@@ -296,7 +296,12 @@ export function bookingDetailsFlex(
         layout: "vertical",
         spacing: "sm",
         contents: [
-          { type: "text", text: "รายละเอียดการจอง", weight: "bold", size: "lg" },
+          {
+            type: "text",
+            text: "รายละเอียดการจอง",
+            weight: "bold",
+            size: "lg",
+          },
           {
             type: "box",
             layout: "vertical",
@@ -323,13 +328,20 @@ export function bookingDetailsFlex(
               },
               {
                 type: "text",
-                text: `สถานะ: ${(p as any).status || "-"}`,
+                text: `สถานะ: ${
+                  (p as BookingRow & BookingSessionRow).status || "-"
+                }`,
                 size: "sm",
               },
               p.note
-                ? { type: "text", text: `หมายเหตุ: ${p.note}`, size: "sm", wrap: true }
+                ? {
+                    type: "text",
+                    text: `หมายเหตุ: ${p.note}`,
+                    size: "sm",
+                    wrap: true,
+                  }
                 : { type: "text", text: "", size: "sm" },
-            ].filter((x) => (x as any).text !== ""),
+            ].filter((x: { text?: string }) => x.text !== ""),
           },
         ],
       },
@@ -376,15 +388,32 @@ export function profileListFlex(members: UserRow[]): LineMessage {
         contents: [
           { type: "text", text: "โปรไฟล์สมาชิก", size: "lg", weight: "bold" },
           ...items.map((m) => ({
-            type: "box",
-            layout: "vertical",
+            type: "box" as const,
+            layout: "vertical" as const,
             spacing: "xs",
             margin: "md",
             contents: [
-              { type: "text", text: m.name || "(ไม่มีชื่อ)", weight: "bold", size: "sm" },
-              { type: "text", text: `โทร: ${m.phone || "-"}`, size: "xs" },
-              { type: "text", text: `HN: ${m.hn || "-"}`, size: "xs" },
-              { type: "text", text: `โรงพยาบาล: ${m.hospital || "-"}`, size: "xs" },
+              {
+                type: "text" as const,
+                text: m.name || "(ไม่มีชื่อ)",
+                weight: "bold" as const,
+                size: "sm" as const,
+              },
+              {
+                type: "text" as const,
+                text: `โทร: ${m.phone || "-"}`,
+                size: "xs" as const,
+              },
+              {
+                type: "text" as const,
+                text: `HN: ${m.hn || "-"}`,
+                size: "xs" as const,
+              },
+              {
+                type: "text" as const,
+                text: `โรงพยาบาล: ${m.hospital || "-"}`,
+                size: "xs" as const,
+              },
             ],
           })),
         ],
