@@ -1,0 +1,36 @@
+<svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8"/>
+    </filter>
+  </defs>
+  
+  <!-- พื้นหลังสีฟ้าอ่อน (น้ำ/ทะเล) -->
+  <rect width="800" height="400" fill="#B3E5FC"/>
+  
+  <!-- พื้นที่แผ่นดิน (สีเทาอ่อน) -->
+  <path d="M50 80 Q200 60 350 90 Q500 100 650 85 Q750 90 800 100 L800 380 Q700 370 600 375 Q400 380 200 370 Q100 375 50 380 Z" fill="#F5F5F5"/>
+  
+  <!-- เส้นถนนหลัก -->
+  <path d="M0 150 Q200 140 400 155 Q600 150 800 160" stroke="#E0E0E0" stroke-width="8" fill="none"/>
+  <path d="M0 220 Q150 210 300 225 Q450 220 600 230 Q700 225 800 235" stroke="#E0E0E0" stroke-width="6" fill="none"/>
+  <path d="M0 290 Q100 280 250 295 Q400 290 550 300 Q700 295 800 305" stroke="#E0E0E0" stroke-width="4" fill="none"/>
+  
+  <!-- เส้นถนนแนวตั้ง -->
+  <path d="M150 0 Q160 150 155 250 Q150 350 160 400" stroke="#E0E0E0" stroke-width="5" fill="none"/>
+  <path d="M300 0 Q310 100 305 200 Q300 300 310 400" stroke="#E0E0E0" stroke-width="4" fill="none"/>
+  <path d="M500 0 Q510 120 505 240 Q500 320 510 400" stroke="#E0E0E0" stroke-width="4" fill="none"/>
+  <path d="M650 0 Q660 100 655 220 Q650 340 660 400" stroke="#E0E0E0" stroke-width="3" fill="none"/>
+  
+  <!-- พื้นที่สีเขียว (สวนสาธารณะ) -->
+  <circle cx="200" cy="180" r="25" fill="#C8E6C9"/>
+  <circle cx="450" cy="250" r="20" fill="#C8E6C9"/>
+  <circle cx="600" cy="160" r="15" fill="#C8E6C9"/>
+  
+  <!-- ใช้ filter blur กับทั้งหมด -->
+  <g filter="url(#blur)">
+    <!-- เส้นถนนเพิ่มเติมสำหรับความสมจริง -->
+    <path d="M100 100 Q300 95 500 105 Q700 100 800 110" stroke="#DADADA" stroke-width="2" fill="none"/>
+    <path d="M0 340 Q200 335 400 345 Q600 340 800 350" stroke="#DADADA" stroke-width="2" fill="none"/>
+  </g>
+</svg>

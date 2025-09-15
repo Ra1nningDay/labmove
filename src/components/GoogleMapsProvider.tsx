@@ -29,9 +29,5 @@ export function GoogleMapsProvider({
     // No key: render children without provider so fallbacks can work
     return <>{children}</>;
   }
-  return (
-    <APIProvider apiKey={apiKey} libraries={["places", "geometry"]}>
-      {children}
-    </APIProvider>
-  );
+  return <APIProvider apiKey={apiKey}>{children}</APIProvider>;
 }

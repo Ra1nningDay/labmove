@@ -1,15 +1,23 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import type { Task, TaskStatus } from "@/lib/types";
+import dynamic from "next/dynamic";
+import Image from "next/image";
+import type { Task, TaskStatus, Officer } from "@/lib/types";
 import { useTasks } from "@/store/tasks";
 import { useOfficers } from "@/store/officers";
 import { Filters, type TaskQuery } from "@/components/Filters";
 import { TaskList } from "@/components/TaskList";
-import { MapCanvas } from "@/components/MapCanvas";
 import { OfficerList } from "@/components/OfficerList";
-import { AssignmentDrawer } from "@/components/AssignmentDrawer";
+import { BrandedMapPlaceholder } from "@/components/BrandedMapPlaceholder";
+// Defer heavy drawer (lists, sorting, effects) until opened
+const AssignmentDrawer = dynamic(
+  () => import("@/components/AssignmentDrawer").then((m) => m.AssignmentDrawer),
+  { ssr: false }
+);
 import { TopNav } from "@/components/TopNav";
+
+// Map components are lazy-loaded after idle/interaction via import() in an effect
 
 export default function Page() {
   const { tasks, selectedTaskId, setSelectedTaskId, selectedTask, assignTask } =
@@ -26,6 +34,79 @@ export default function Page() {
   const [leftTab, setLeftTab] = useState<"tasks" | "officers">("tasks");
   const [routeOfficerId, setRouteOfficerId] = useState<string | null>(null);
   const [routeOpen, setRouteOpen] = useState(false);
+  // Delay loading heavy map code until idle/interaction; keep placeholder as LCP
+  const [showMap, setShowMap] = useState(false);
+  const [placeholderVisible, setPlaceholderVisible] = useState(true);
+  const pendingTimers = React.useRef<number[]>([]);
+  type MapProps = {
+    tasks: Task[];
+    officers: Officer[];
+    selectedTaskId?: string | null;
+    onSelectTask?: (id: string | null) => void;
+    routeOfficerId?: string | null;
+    onChangeRouteOfficerId?: (id: string | null) => void;
+    routeOpen?: boolean;
+    onChangeRouteOpen?: (open: boolean) => void;
+  };
+  type ProviderProps = { children: React.ReactNode };
+  const [MapComponent, setMapComponent] =
+    useState<null | React.ComponentType<MapProps>>(null);
+  const [ProviderComponent, setProviderComponent] =
+    useState<null | React.ComponentType<ProviderProps>>(null);
+  const [isLoadingMap, setIsLoadingMap] = useState(false);
+  const loadMapNow = React.useCallback(() => {
+    if (isLoadingMap || MapComponent || ProviderComponent) return;
+    setIsLoadingMap(true);
+
+    // Preload with higher priority
+    Promise.all([
+      import("@/components/MapCanvas").then((m) => m.MapCanvas),
+      import("@/components/GoogleMapsProvider").then(
+        (m) => m.GoogleMapsProvider
+      ),
+    ])
+      .then(([MapC, Provider]) => {
+        setMapComponent(() => MapC as unknown as React.ComponentType<MapProps>);
+        setProviderComponent(
+          () => Provider as unknown as React.ComponentType<ProviderProps>
+        );
+        setShowMap(true);
+        // Start hiding placeholder sooner when components are ready
+        setTimeout(() => setIsLoadingMap(false), 100);
+      })
+      .catch((error) => {
+        console.error("Failed to load map components:", error);
+        setIsLoadingMap(false);
+      });
+  }, [isLoadingMap, MapComponent, ProviderComponent]);
+
+  // Button-only interaction: remove global listeners; user must click the CTA
+  React.useEffect(() => {
+    // Only start hiding placeholder after we decide to load the map
+    if (!showMap) return;
+    const start = typeof performance !== "undefined" ? performance.now() : 0;
+    const minHoldMs = 150; // minimal hold for smooth transition
+    const onFirstTiles = () => {
+      const elapsed =
+        (typeof performance !== "undefined" ? performance.now() : minHoldMs) -
+        start;
+      const delay = Math.max(0, minHoldMs - elapsed);
+      const tid = window.setTimeout(() => setPlaceholderVisible(false), delay);
+      pendingTimers.current.push(tid);
+    };
+    window.addEventListener("map:first-tiles", onFirstTiles);
+    // Fallback: hide placeholder after a shorter timeout for better UX
+    const failSafe = window.setTimeout(
+      () => setPlaceholderVisible(false),
+      1500 // much faster fallback
+    );
+    pendingTimers.current.push(failSafe);
+    return () => {
+      window.removeEventListener("map:first-tiles", onFirstTiles);
+      for (const id of pendingTimers.current) window.clearTimeout(id);
+      pendingTimers.current = [];
+    };
+  }, [showMap]);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -54,7 +135,7 @@ export default function Page() {
               </div>
               <div className="flex items-center gap-1">
                 <button
-                  className={`px-3 py-1.5 text-xs rounded-md border ${
+                  className={`px-4 py-2 text-xs rounded-md border ${
                     leftTab === "tasks"
                       ? "bg-primary text-primary-foreground"
                       : "bg-background"
@@ -64,7 +145,7 @@ export default function Page() {
                   งาน
                 </button>
                 <button
-                  className={`px-3 py-1.5 text-xs rounded-md border ${
+                  className={`px-4 py-2 text-xs rounded-md border ${
                     leftTab === "officers"
                       ? "bg-primary text-primary-foreground"
                       : "bg-background"
@@ -103,30 +184,75 @@ export default function Page() {
           )}
         </div>
 
-        <div className="min-h-[320px]  md:h-[calc(100vh-120px)] md:col-span-4 col-span-6">
-          <MapCanvas
-            tasks={filtered}
-            officers={officers}
-            selectedTaskId={selectedTaskId}
-            onSelectTask={setSelectedTaskId}
-            routeOfficerId={routeOfficerId}
-            onChangeRouteOfficerId={setRouteOfficerId}
-            routeOpen={routeOpen}
-            onChangeRouteOpen={setRouteOpen}
-          />
+        <div className="min-h-[320px] md:h-[calc(100vh-120px)] md:col-span-4 col-span-6">
+          <div className="relative h-full w-full rounded-md border overflow-hidden bg-gradient-to-br from-blue-50 to-green-50">
+            {/* Map layer */}
+            {showMap && MapComponent && ProviderComponent && (
+              <div
+                className={`absolute inset-0 z-0 transition-opacity duration-500 ${
+                  !placeholderVisible ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                {React.createElement(
+                  ProviderComponent,
+                  null,
+                  React.createElement(MapComponent, {
+                    tasks: filtered,
+                    officers: officers,
+                    selectedTaskId: selectedTaskId,
+                    onSelectTask: setSelectedTaskId,
+                    routeOfficerId: routeOfficerId,
+                    onChangeRouteOfficerId: setRouteOfficerId,
+                    routeOpen: routeOpen,
+                    onChangeRouteOpen: setRouteOpen,
+                  })
+                )}
+              </div>
+            )}
+
+            {/* Placeholder overlay kept on top until first tiles render */}
+            <div
+              className={`absolute inset-0 z-10 transition-opacity duration-700 ${
+                placeholderVisible || !showMap
+                  ? "opacity-100"
+                  : "opacity-0 pointer-events-none"
+              }`}
+              aria-hidden={!placeholderVisible && showMap}
+            >
+              {/* LQIP - Blurred map background */}
+              <Image
+                src="/map-lqip.svg"
+                alt="แผนที่พื้นที่ให้บริการ"
+                fill
+                priority
+                fetchPriority="high"
+                sizes="(min-width: 768px) 66vw, 100vw"
+                style={{ objectFit: "cover" }}
+                className="blur-sm scale-105"
+              />
+
+              {/* Branded Overlay with CTA */}
+              <BrandedMapPlaceholder
+                onOpenMap={loadMapNow}
+                isLoading={isLoadingMap}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      <AssignmentDrawer
-        open={assignOpen}
-        onOpenChange={setAssignOpen}
-        task={taskForAssign}
-        officers={officers}
-        onAssign={(taskId, officerId) => {
-          assignTask(taskId, officerId);
-          setSelectedTaskId(taskId);
-        }}
-      />
+      {assignOpen && (
+        <AssignmentDrawer
+          open={assignOpen}
+          onOpenChange={setAssignOpen}
+          task={taskForAssign}
+          officers={officers}
+          onAssign={(taskId, officerId) => {
+            assignTask(taskId, officerId);
+            setSelectedTaskId(taskId);
+          }}
+        />
+      )}
     </div>
   );
 }

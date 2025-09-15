@@ -103,7 +103,7 @@ export function FallbackCanvas({
             onClick={() => onSelectTask?.(t.id)}
             className="absolute -translate-x-1/2 -translate-y-1/2 outline-none"
             style={{ left: p.x, top: p.y }}
-            title={`${t.patientName} • ${t.address}`}
+            aria-label={`เลือกงาน: ${t.patientName} • ${t.address}`}
           >
             <span
               className={cn(

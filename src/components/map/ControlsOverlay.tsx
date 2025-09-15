@@ -56,6 +56,7 @@ export function ControlsOverlay({
           variant={routeActive ? "default" : "outline"}
           onClick={onOpenRoute}
           title="แสดงเส้นทางเจ้าหน้าที่"
+          aria-label="แสดงเส้นทางเจ้าหน้าที่"
           className="cursor-pointer"
         >
           <RouteIcon className="size-4 mr-1" /> เส้นทาง
@@ -64,7 +65,7 @@ export function ControlsOverlay({
           size="sm"
           variant="outline"
           onClick={onOpenSettings}
-          title="ตั้งค่าแผนที่"
+          aria-label="ตั้งค่าแผนที่"
           className="cursor-pointer"
         >
           <Settings className="size-4" />

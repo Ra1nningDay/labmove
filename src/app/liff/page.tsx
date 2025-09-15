@@ -1,11 +1,20 @@
 "use client";
 
 import React from "react";
-import SignupForm from "@/components/liff/SignupForm";
-import BookingForm from "@/components/liff/BookingForm";
+import dynamic from "next/dynamic";
 import Navbar from "@/components/liff/Navbar";
 
 type Mode = "" | "signup" | "booking";
+
+// Defer heavy LIFF forms until mode is known
+const SignupForm = dynamic(
+  () => import("@/components/liff/SignupForm").then((m) => m.default),
+  { ssr: false }
+);
+const BookingForm = dynamic(
+  () => import("@/components/liff/BookingForm").then((m) => m.default),
+  { ssr: false }
+);
 
 export default function LiffUnifiedPage() {
   const [mode, setMode] = React.useState<Mode>("");

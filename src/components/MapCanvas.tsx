@@ -50,6 +50,9 @@ type LatLng = google.maps.LatLngLiteral;
 
 export function MapCanvas(props: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // NOTE: Google Maps tiles are rendered by the @vis.gl/react-google-maps library.
+  // There is currently no way to set fetchpriority="high" on the underlying <img> tags for map tiles.
+  // If this becomes supported upstream, update here to optimize LCP further.
   if (!apiKey) {
     return <FallbackCanvas {...props} />;
   }
@@ -125,6 +128,34 @@ function InnerMapCanvas(props: Props) {
 
   React.useEffect(() => {
     if (map) mapRef.current = map;
+  }, [map]);
+
+  // Notify page when the first map tiles have rendered so it can fade out
+  // the placeholder image. This helps keep the local placeholder as LCP
+  // instead of a late-loading Google Maps tile.
+  React.useEffect(() => {
+    if (!mapRef.current) return;
+    let fired = false;
+    try {
+      const once = google.maps.event.addListenerOnce(
+        mapRef.current,
+        "tilesloaded",
+        () => {
+          if (fired) return;
+          fired = true;
+          try {
+            window.dispatchEvent(new Event("map:first-tiles"));
+          } catch {}
+        }
+      );
+      return () => {
+        try {
+          google.maps.event.removeListener(once);
+        } catch {}
+      };
+    } catch {
+      // Silently ignore if event system not ready (e.g. in fallback/no-key)
+    }
   }, [map]);
 
   // When a task is selected from the left list, pan/zoom to it (non-intrusive)

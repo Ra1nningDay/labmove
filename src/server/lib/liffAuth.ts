@@ -63,7 +63,8 @@ export function originAllowed(req: {
 }) {
   // Dev/Tunnel override — enable only during development
   const allowAll = (process.env.ALLOW_ALL_ORIGINS || "").toLowerCase();
-  if (allowAll === "1" || allowAll === "true" || allowAll === "yes") return true;
+  if (allowAll === "1" || allowAll === "true" || allowAll === "yes")
+    return true;
 
   const origin = req.headers.get("origin");
   if (!origin) return true; // Some clients may omit; allow in MVP
@@ -75,7 +76,7 @@ export function originAllowed(req: {
   if (allowOriginsRaw === "*") return true;
 
   // Support comma-separated allowlist in PUBLIC_BASE_URL (back-compat)
-  const pb = (process.env.PUBLIC_BASE_URL || "").trim();
+  const pb = (process.env.NEXT_PUBLIC_BASE_URL || "").trim();
   const allowedList = [allowOriginsRaw, pb]
     .filter(Boolean)
     .flatMap((x) => x.split(/[,\s]+/))

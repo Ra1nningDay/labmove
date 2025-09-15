@@ -59,7 +59,10 @@ export function Filters({ query, onChange }: Props) {
           </div>
         </div>
         <div className="space-y-1">
-          <Label className="flex items-center gap-1 text-muted-foreground">
+          <Label
+            id="filter-status-label"
+            className="flex items-center gap-1 text-muted-foreground"
+          >
             <Sparkles className="size-3.5" /> สถานะ
           </Label>
           <Select
@@ -68,7 +71,7 @@ export function Filters({ query, onChange }: Props) {
               onChange({ ...query, status: v === "all" ? "" : (v as TaskStatus) })
             }
           >
-            <SelectTrigger>
+            <SelectTrigger aria-labelledby="filter-status-label">
               <SelectValue placeholder="ทั้งหมด" />
             </SelectTrigger>
             <SelectContent>

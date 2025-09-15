@@ -70,16 +70,17 @@ export function TaskList({
   return (
     <div className="rounded-md border bg-card">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger className="w-full p-2 text-xs text-muted-foreground flex items-center justify-between gap-2 hover:bg-accent/20 transition-colors">
+        <CollapsibleTrigger className="w-full px-3 py-3 min-h-11 text-sm text-muted-foreground flex items-center justify-between gap-2 hover:bg-accent/20 transition-colors">
           <span>งานทั้งหมด ({tasks.length})</span>
           <div className="flex items-center gap-2">
             <label
-              className="flex items-center gap-1 select-none"
+              className="flex items-center gap-2 select-none rounded px-2 py-2 -mx-2"
               onClick={(e) => e.stopPropagation()}
             >
               <input
+                aria-label="พรีวิวเมื่อชี้บนรายการงาน"
                 type="checkbox"
-                className="h-3.5 w-3.5 accent-current"
+                className="h-6 w-6 accent-current"
                 checked={hoverPreview}
                 onChange={(e) => setHoverPreview(e.target.checked)}
               />
