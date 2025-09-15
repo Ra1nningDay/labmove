@@ -37,6 +37,18 @@ export default function Page() {
   // Delay loading heavy map code until idle/interaction; keep placeholder as LCP
   const [showMap, setShowMap] = useState(false);
   const [placeholderVisible, setPlaceholderVisible] = useState(true);
+  
+  // Auto-load map if user previously chose to view it
+  React.useEffect(() => {
+    const shouldAutoLoadMap = localStorage.getItem('labmove-auto-load-map') === 'true';
+    if (shouldAutoLoadMap) {
+      // Small delay to avoid blocking initial render
+      const timer = setTimeout(() => {
+        loadMapNow();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, []);
   const pendingTimers = React.useRef<number[]>([]);
   type MapProps = {
     tasks: Task[];
