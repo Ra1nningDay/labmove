@@ -123,14 +123,15 @@
 
 /* Spinner animation for LIFF loading */
 @keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .spinner {
   animation: spin 1s linear infinite;
+}
+
+/* Custom border width for spinner */
+.border-3 {
+  border-width: 3px;
 }

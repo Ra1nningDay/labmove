@@ -3,6 +3,7 @@
 import React from "react";
 import SignupForm from "@/components/liff/SignupForm";
 import BookingForm from "@/components/liff/BookingForm";
+import Navbar from "@/components/liff/Navbar";
 
 type Mode = "" | "signup" | "booking";
 
@@ -81,84 +82,72 @@ export default function LiffUnifiedPage() {
   // Show loader while determining mode or LIFF not ready
   if (!modeLoaded || (!ready && !error)) {
     return (
-      <main style={{ maxWidth: 520, margin: "24px auto", padding: 16 }}>
-        {/* <h1 style={{ margin: 0 }}>LabMove</h1> */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            marginTop: 32,
-            padding: 24,
-          }}
-        >
-          <div
-            className="spinner"
-            style={{
-              width: 32,
-              height: 32,
-              border: "3px solid #f3f3f3",
-              borderTop: "3px solid #4f46e5",
-              borderRadius: "50%",
-            }}
-          />
-          <p
-            style={{
-              marginTop: 16,
-              color: "#666",
-              textAlign: "center",
-            }}
-          >
-            {/* {!modeLoaded ? "กำลังโหลด..." : "กำลังเชื่อมต่อ LINE..."} */}
-          </p>
-        </div>
-      </main>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200">
+        <Navbar />
+        <main className="max-w-lg mx-auto">
+          <div className="flex flex-col items-center mt-8 p-6">
+            <div className="spinner w-8 h-8 border-3 border-gray-200 border-t-indigo-600 rounded-full" />
+            <p className="mt-4 text-gray-600 text-center">
+              {!modeLoaded ? "กำลังโหลด..." : "กำลังเชื่อมต่อ LINE..."}
+            </p>
+          </div>
+        </main>
+      </div>
     );
   }
 
   return (
-    <main style={{ maxWidth: 520, margin: "24px auto", padding: 16 }}>
-      <h1 style={{ margin: 0 }}></h1>
-      {error && (
-        <div
-          style={{
-            background: "#ffecec",
-            color: "#c00",
-            padding: 12,
-            borderRadius: 8,
-            marginTop: 12,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {mode === "signup" && (
-        <SignupForm
-          ready={ready}
-          isLoggedIn={isLoggedIn}
-          idToken={idToken}
-          onLogin={handleLogin}
-        />
-      )}
-      {mode === "booking" && (
-        <BookingForm
-          ready={ready}
-          isLoggedIn={isLoggedIn}
-          idToken={idToken}
-          onLogin={handleLogin}
-        />
-      )}
-
-      {!mode && modeLoaded && (
-        <div style={{ marginTop: 12 }}>
-          <p style={{ color: "#666" }}>เลือกโหมดที่ต้องการใช้งาน</p>
-          <div style={{ display: "flex", gap: 12 }}>
-            <a href="?mode=signup">เปิดสมัครสมาชิก</a>
-            <a href="?mode=booking">เปิดจองนัด</a>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200">
+      <Navbar />
+      <main className="max-w-lg mx-auto">
+        {error && (
+          <div className="bg-red-50 text-red-700 p-3 rounded-lg mt-3">
+            {error}
           </div>
-        </div>
-      )}
-    </main>
+        )}
+
+        {mode === "signup" && (
+          <SignupForm
+            ready={ready}
+            isLoggedIn={isLoggedIn}
+            idToken={idToken}
+            onLogin={handleLogin}
+          />
+        )}
+        {mode === "booking" && (
+          <BookingForm
+            ready={ready}
+            isLoggedIn={isLoggedIn}
+            idToken={idToken}
+            onLogin={handleLogin}
+          />
+        )}
+
+        {!mode && modeLoaded && (
+          <div className="mt-3 p-6 bg-white rounded-2xl shadow-lg text-center">
+            <h2 className="text-xl font-semibold text-blue-600 mb-4">
+              เลือกบริการที่ต้องการ
+            </h2>
+            <p className="text-gray-600 mb-6 text-sm">
+              เลือกโหมดที่ต้องการใช้งาน
+            </p>
+            <div className="flex flex-col gap-3">
+              <a
+                href="?mode=signup"
+                className="block py-3 px-5 bg-gradient-to-r from-blue-400 to-blue-500 text-white no-underline rounded-lg font-medium hover:from-blue-500 hover:to-blue-600 transition-all duration-200 hover:scale-105"
+              >
+                📝 สมัครสมาชิก
+              </a>
+              <a
+                href="?mode=booking"
+                className="block py-3 px-5 bg-gradient-to-r from-red-400 to-red-500 text-white no-underline rounded-lg font-medium hover:from-red-500 hover:to-red-600 transition-all duration-200 hover:scale-105"
+              >
+                📅 จองนัดเจาะเลือด
+              </a>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
