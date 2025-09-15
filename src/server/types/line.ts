@@ -13,42 +13,52 @@ export type LineMessageText = {
 };
 
 // Flex message contents (simplified typing)
-export type LineFlexContents = {
+export type LineBoxText = {
+  type: "text";
+  text: string;
+  weight?: string;
+  size?: string;
+  color?: string;
+  wrap?: boolean;
+  margin?: string;
+  backgroundColor?: string;
+};
+
+export type LineBoxButton = {
+  type: "button";
+  style?: "primary" | "secondary" | "link";
+  color?: string;
+  action: LineActionPostback | LineActionMessage | LineActionURI;
+};
+
+export type LineBox = {
+  type: "box";
+  layout: "vertical" | "horizontal" | "baseline";
+  spacing?: string;
+  margin?: string;
+  paddingAll?: string;
+  backgroundColor?: string;
+  contents: Array<LineBoxText | LineBox | LineBoxButton | unknown>;
+};
+
+export type LineFlexBubble = {
   type: "bubble";
-  body?: {
-    type: "box";
-    layout: "vertical";
-    spacing?: string;
-    contents: Array<
-      | {
-          type: "text";
-          text: string;
-          weight?: string;
-          size?: string;
-          color?: string;
-          wrap?: boolean;
-          margin?: string;
-        }
-      | {
-          type: "box";
-          layout: "vertical" | "horizontal";
-          spacing?: string;
-          margin?: string;
-          contents: Array<unknown>; // Recursive, using unknown for simplicity
-        }
-    >;
-  };
-  footer?: {
-    type: "box";
-    layout: "vertical" | "horizontal";
-    spacing?: string;
-    contents: Array<{
-      type: "button";
-      style?: "primary" | "secondary" | "link";
-      action: LineActionPostback | LineActionMessage | LineActionURI;
-    }>;
+  header?: LineBox;
+  body?: LineBox;
+  footer?: LineBox;
+  styles?: {
+    footer?: {
+      separator?: boolean;
+    };
   };
 };
+
+export type LineFlexCarousel = {
+  type: "carousel";
+  contents: LineFlexBubble[];
+};
+
+export type LineFlexContents = LineFlexBubble | LineFlexCarousel;
 
 export type LineMessageFlex = {
   type: "flex";

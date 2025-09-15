@@ -29,7 +29,10 @@ Conventions
 5) Profile List (multi‑member)
 - Purpose: list members registered under the same LINE ID
 - Trigger: postback `{ action: "profile_show" }`
-- Contents: up to 5 recent members with name/phone/HN/hospital
+- Contents:
+  - If 1 member → single bubble summary
+  - If 2–10 members → carousel with one bubble per member (name/phone/HN/hospital)
+- Note: capped at 10 bubbles by LINE; most recent members are shown
 - Future: tap to select a default member (not in MVP)
 
 6) Open LIFF Prompt (simple)

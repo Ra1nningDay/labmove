@@ -61,11 +61,35 @@ export function originAllowed(req: {
   headers: { get(name: string): string | null };
   nextUrl?: { origin: string };
 }) {
+  // Dev/Tunnel override — enable only during development
+  const allowAll = (process.env.ALLOW_ALL_ORIGINS || "").toLowerCase();
+  if (allowAll === "1" || allowAll === "true" || allowAll === "yes") return true;
+
   const origin = req.headers.get("origin");
   if (!origin) return true; // Some clients may omit; allow in MVP
   const self = req.nextUrl?.origin;
   if (self && origin === self) return true;
-  const allowed = process.env.PUBLIC_BASE_URL;
-  if (allowed && origin === allowed) return true;
+
+  // Support ALLOW_ORIGINS (comma/space-separated). '*' means allow all.
+  const allowOriginsRaw = (process.env.ALLOW_ORIGINS || "").trim();
+  if (allowOriginsRaw === "*") return true;
+
+  // Support comma-separated allowlist in PUBLIC_BASE_URL (back-compat)
+  const pb = (process.env.PUBLIC_BASE_URL || "").trim();
+  const allowedList = [allowOriginsRaw, pb]
+    .filter(Boolean)
+    .flatMap((x) => x.split(/[,\s]+/))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (allowedList.length > 0 && allowedList.includes(origin)) return true;
+
+  // Fallback via Referer origin when present
+  const referer = req.headers.get("referer");
+  if (referer && allowedList.length > 0) {
+    try {
+      const refOrigin = new URL(referer).origin;
+      if (allowedList.includes(refOrigin)) return true;
+    } catch {}
+  }
   return false;
 }
