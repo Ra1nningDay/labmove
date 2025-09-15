@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "richmenu:create-all": "node scripts/richmenus/index.js create-all",
+    "richmenu:publish": "node scripts/richmenus/index.js create-all",
     "richmenu:list": "node scripts/richmenus/index.js list",
+    "richmenu:whoami": "node scripts/richmenus/index.js whoami",
     "richmenu:delete-all": "node scripts/richmenus/index.js delete-all",
     "richmenu:delete-others": "node scripts/richmenus/index.js delete-others",
     "richmenu:set-default": "node scripts/richmenus/index.js set-default",
@@ -30,11 +32,12 @@
     "googleapis": "^142.0.0",
     "lucide-react": "^0.542.0",
     "next": "15.5.2",
+    "pngjs": "^7.0.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-hook-form": "^7.62.0",
     "tailwind-merge": "^3.3.1",
-    "vaul": "^1.1.2",
-    "pngjs": "^7.0.0"
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

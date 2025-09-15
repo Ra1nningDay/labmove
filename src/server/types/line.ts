@@ -45,7 +45,7 @@ export type LineFlexContents = {
     contents: Array<{
       type: "button";
       style?: "primary" | "secondary" | "link";
-      action: LineActionPostback | LineActionMessage;
+      action: LineActionPostback | LineActionMessage | LineActionURI;
     }>;
   };
 };
@@ -67,6 +67,12 @@ export type LineActionMessage = {
   type: "message";
   label: string;
   text: string;
+};
+// URI action for opening external URLs (e.g., LIFF)
+export type LineActionURI = {
+  type: "uri";
+  label?: string;
+  uri: string;
 };
 export type LineMessageTemplateConfirm = {
   type: "template";

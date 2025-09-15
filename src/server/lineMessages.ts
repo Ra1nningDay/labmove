@@ -24,6 +24,29 @@ export function quickReplyMenu(): LineQuickReply {
 }
 
 export function welcomeFlex(): LineMessage {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+  const signupAction = liffId
+    ? {
+        type: "uri" as const,
+        label: "สมัครสมาชิก",
+        uri: `https://liff.line.me/${liffId}?mode=signup`,
+      }
+    : {
+      type: "postback" as const,
+      label: "สมัครสมาชิก",
+      data: JSON.stringify({ mode: "signup_start" }),
+    };
+  const bookingAction = liffId
+    ? {
+        type: "uri" as const,
+        label: "จองนัด",
+        uri: `https://liff.line.me/${liffId}?mode=booking`,
+      }
+    : {
+      type: "postback" as const,
+      label: "จองนัด",
+      data: JSON.stringify({ mode: "booking_start" }),
+    };
   return {
     type: "flex",
     altText: "ยินดีต้อนรับสู่ Labmove",
@@ -57,20 +80,12 @@ export function welcomeFlex(): LineMessage {
           {
             type: "button",
             style: "primary",
-            action: {
-              type: "postback",
-              label: "สมัครสมาชิก",
-              data: JSON.stringify({ mode: "signup_start" }),
-            },
+            action: signupAction,
           },
           {
             type: "button",
             style: "secondary",
-            action: {
-              type: "postback",
-              label: "จองนัด",
-              data: JSON.stringify({ mode: "booking_start" }),
-            },
+            action: bookingAction,
           },
           {
             type: "button",
@@ -81,6 +96,57 @@ export function welcomeFlex(): LineMessage {
               text: "คุยกับผู้ช่วย",
             },
           },
+        ],
+      },
+    },
+  };
+}
+
+// Minimal prompt that opens LIFF for a specific mode
+export function openLiffPromptFlex(mode: "signup" | "booking"): LineMessage {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+  const label = mode === "signup" ? "สมัครสมาชิก" : "จองนัด";
+  const title = mode === "signup" ? "เปิดหน้าสมัครสมาชิก" : "เปิดหน้าจองนัด";
+  const action = liffId
+    ? ({
+        type: "uri" as const,
+        label,
+        uri: `https://liff.line.me/${liffId}?mode=${mode}`,
+      } as const)
+    : ({
+        type: "postback" as const,
+        label,
+        data: JSON.stringify({ mode: `${mode}_start` }),
+      } as const);
+  return {
+    type: "flex",
+    altText: label,
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          { type: "text", text: title, weight: "bold", size: "lg" },
+          {
+            type: "text",
+            text:
+              mode === "signup"
+                ? "กดปุ่มด้านล่างเพื่อเปิดหน้าสมัครสมาชิกใน LIFF"
+                : "กดปุ่มด้านล่างเพื่อเปิดหน้าจองนัดใน LIFF",
+            size: "sm",
+            color: "#666666",
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          { type: "button", style: "primary", action },
         ],
       },
     },

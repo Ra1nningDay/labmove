@@ -15,8 +15,21 @@ import { saveUser, findUserByLineId } from "@/server/repo/users";
 import { upsertSignupSession } from "@/server/repo/sessions";
 import { appendBooking, upsertBookingSession } from "@/server/repo/bookings";
 import type { LineMessage } from "@/server/types/line";
-import { bookingSummaryFlex, signupSummaryFlex } from "@/server/lineMessages";
+import {
+  bookingSummaryFlex,
+  signupSummaryFlex,
+  openLiffPromptFlex,
+  bookingDetailsFlex,
+  profileListFlex,
+} from "@/server/lineMessages";
 import { geocodeTextServer, parseLatLngFromText } from "@/server/lib/geocode";
+import { detectIntent } from "@/server/agent/intent";
+import {
+  getLatestBookingByUserId,
+  getBookingSessionByUserId,
+} from "@/server/repo/bookings";
+import { findUsersByLineId } from "@/server/repo/users";
+import { welcomeFlex } from "@/server/lineMessages";
 
 export async function handleChat(
   userId: string,
@@ -74,8 +87,7 @@ export async function handleChat(
     return [
       {
         type: "text",
-        text:
-          "ผู้ช่วยแชต: พิมพ์คำถามได้เลย\nหรือกด 'เมนู' เพื่อดูตัวเลือก",
+        text: "ผู้ช่วยแชต: พิมพ์คำถามได้เลย\nหรือกด 'เมนู' เพื่อดูตัวเลือก",
       },
     ];
   }
@@ -191,8 +203,80 @@ export async function handleChat(
     return [{ type: "text", text: responseText }];
   }
 
+  // No ongoing flow → prefer LIFF-first intents
+  const intent = detectIntent(t);
+  if (intent === "menu") {
+    return [
+      // Reuse welcome flex which already contains LIFF buttons
+      // Quick reply will be attached by webhook if needed
+      welcomeFlex(),
+    ];
+  }
+  if (intent === "help") {
+    upsertUserMeta(userId, { mode: "llm" });
+    return [{ type: "text", text: "พิมพ์คำถามได้เลย หรือกดปุ่มในเมนูหลัก" }];
+  }
+  if (intent === "signup") {
+    const hasLiff = !!process.env.NEXT_PUBLIC_LIFF_ID;
+    if (hasLiff) return [openLiffPromptFlex("signup")];
+    const { nextProgress, responseText } = handleSignupStep(undefined, "สมัคร");
+    upsertUserProgress(userId, nextProgress);
+    try {
+      await upsertSignupSession(userId, nextProgress);
+    } catch {}
+    return [{ type: "text", text: responseText }];
+  }
+  if (intent === "booking") {
+    if (!reg.registered) {
+      return [
+        {
+          type: "text",
+          text: "ยังไม่พบข้อมูลสมาชิกของคุณ กรุณาพิมพ์ 'สมัคร' หรือเปิด LIFF สมัครก่อนทำการจอง",
+        },
+      ];
+    }
+    const hasLiff = !!process.env.NEXT_PUBLIC_LIFF_ID;
+    if (hasLiff) return [openLiffPromptFlex("booking")];
+    const { nextProgress, responseText } = handleBookingStep(
+      undefined,
+      "จองนัด"
+    );
+    upsertBookingProgress(userId, nextProgress);
+    try {
+      await upsertBookingSession(userId, { userId, step: nextProgress.step });
+    } catch {}
+    return [{ type: "text", text: responseText }];
+  }
+  if (intent === "profile") {
+    const members = await findUsersByLineId(userId);
+    if (members.length === 0)
+      return [
+        {
+          type: "text",
+          text: "ยังไม่มีข้อมูลสมาชิก กรุณาเปิด LIFF เพื่อสมัครสมาชิก",
+        },
+      ];
+    return [profileListFlex(members)];
+  }
+  if (intent === "booking_details") {
+    const latest =
+      (await getLatestBookingByUserId(userId)) ||
+      (await getBookingSessionByUserId(userId));
+    return latest
+      ? [bookingDetailsFlex(latest)]
+      : [{ type: "text", text: "ยังไม่มีข้อมูลการจอง" }];
+  }
+  if (intent === "edit_date") {
+    return await forceBookingStep(userId, "date_pref");
+  }
+  if (intent === "edit_address") {
+    return await forceBookingStep(userId, "address");
+  }
+
   // Start flows when commands appear
   if (/^สมัคร/i.test(t)) {
+    const hasLiff = !!process.env.NEXT_PUBLIC_LIFF_ID;
+    if (hasLiff) return [openLiffPromptFlex("signup")];
     const { nextProgress, responseText } = handleSignupStep(undefined, "สมัคร");
     upsertUserProgress(userId, nextProgress);
     try {
@@ -210,6 +294,8 @@ export async function handleChat(
         },
       ];
     }
+    const hasLiff = !!process.env.NEXT_PUBLIC_LIFF_ID;
+    if (hasLiff) return [openLiffPromptFlex("booking")];
     const { nextProgress, responseText } = handleBookingStep(
       undefined,
       "จองนัด"
