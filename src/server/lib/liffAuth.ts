@@ -11,7 +11,19 @@ export type LiffTokenInfo = {
   aud?: string | string[];
 };
 
-export async function verifyLiffIdToken(idToken: string): Promise<LiffTokenInfo> {
+type LineVerifyResponse = {
+  sub: string;
+  name?: string;
+  picture?: string;
+  email?: string;
+  exp?: number;
+  iss?: string;
+  aud?: string | string[];
+};
+
+export async function verifyLiffIdToken(
+  idToken: string
+): Promise<LiffTokenInfo> {
   const clientId = process.env.LINE_LOGIN_CHANNEL_ID;
   if (!clientId) throw new Error("Missing LINE_LOGIN_CHANNEL_ID env");
   if (!idToken) throw new Error("Missing ID token");
@@ -26,7 +38,7 @@ export async function verifyLiffIdToken(idToken: string): Promise<LiffTokenInfo>
     const text = await res.text().catch(() => "");
     throw new Error(`LINE verify failed: ${res.status} ${text}`);
   }
-  const data = (await res.json()) as any;
+  const data = (await res.json()) as LineVerifyResponse;
   if (!data || !data.sub) throw new Error("Invalid verify response");
   return {
     sub: String(data.sub),
@@ -45,13 +57,15 @@ export function getBearerToken(authHeader: string | null | undefined): string {
   return m ? m[1] : "";
 }
 
-export function originAllowed(req: { headers: { get(name: string): string | null } ; nextUrl?: URL }) {
+export function originAllowed(req: {
+  headers: { get(name: string): string | null };
+  nextUrl?: { origin: string };
+}) {
   const origin = req.headers.get("origin");
   if (!origin) return true; // Some clients may omit; allow in MVP
-  const self = (req as any).nextUrl?.origin;
+  const self = req.nextUrl?.origin;
   if (self && origin === self) return true;
   const allowed = process.env.PUBLIC_BASE_URL;
   if (allowed && origin === allowed) return true;
   return false;
 }
-

@@ -28,8 +28,6 @@ export default function BookingForm({
   const {
     register,
     handleSubmit,
-    watch,
-    setValue,
     formState: { errors, isValid },
     reset,
   } = useForm<BookingFormData>({
@@ -41,15 +39,8 @@ export default function BookingForm({
     },
   });
 
-  const watchedBookingDate = watch("bookingDate");
-
   // helpers
   const todayISO = () => new Date().toISOString().slice(0, 10);
-  const tomorrowISO = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
-  };
 
   async function onSubmit(data: BookingFormData) {
     setMsg(null);

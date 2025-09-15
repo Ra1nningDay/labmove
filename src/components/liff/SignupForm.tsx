@@ -264,7 +264,7 @@ export default function SignupForm({
 
           {/* Actions */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {/* {!isLoggedIn && (
+            {!isLoggedIn && (
               <button
                 type="button"
                 onClick={onLogin}
@@ -272,7 +272,7 @@ export default function SignupForm({
               >
                 เข้าสู่ระบบด้วย LINE
               </button>
-            )} */}
+            )}
             <button
               type="submit"
               disabled={submitting || !ready || !isLoggedIn || !isValid}
