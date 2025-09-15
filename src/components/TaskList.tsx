@@ -80,7 +80,7 @@ export function TaskList({
               <input
                 aria-label="พรีวิวเมื่อชี้บนรายการงาน"
                 type="checkbox"
-                className="h-6 w-6 accent-current"
+                className="h-5 w-5 accent-current"
                 checked={hoverPreview}
                 onChange={(e) => setHoverPreview(e.target.checked)}
               />

@@ -69,7 +69,7 @@ export function OfficerList({ officers, selectedTask, onShowRoute }: Props) {
           >
             <input
               type="checkbox"
-              className="h-3.5 w-3.5 accent-current"
+              className="h-5 w-5 accent-current"
               checked={hoverPreview}
               onChange={(e) => setHoverPreview(e.target.checked)}
             />

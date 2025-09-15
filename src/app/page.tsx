@@ -26,7 +26,7 @@ export default function Page() {
 
   const [query, setQuery] = useState<TaskQuery>({
     text: "",
-    date: "",
+    date: new Date().toISOString().split("T")[0], // Set to today's date
     status: "",
   });
   const [assignOpen, setAssignOpen] = useState(false);
