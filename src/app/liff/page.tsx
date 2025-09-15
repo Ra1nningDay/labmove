@@ -87,9 +87,9 @@ export default function LiffUnifiedPage() {
         <main className="max-w-lg mx-auto">
           <div className="flex flex-col items-center mt-8 p-6">
             <div className="spinner w-8 h-8 border-3 border-gray-200 border-t-indigo-600 rounded-full" />
-            <p className="mt-4 text-gray-600 text-center">
+            {/* <p className="mt-4 text-gray-600 text-center">
               {!modeLoaded ? "กำลังโหลด..." : "กำลังเชื่อมต่อ LINE..."}
-            </p>
+            </p> */}
           </div>
         </main>
       </div>
@@ -99,7 +99,7 @@ export default function LiffUnifiedPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200">
       <Navbar />
-      <main className="max-w-lg mx-auto">
+      <main className="max-w-lg mx-auto pb-5">
         {error && (
           <div className="bg-red-50 text-red-700 p-3 rounded-lg mt-3">
             {error}

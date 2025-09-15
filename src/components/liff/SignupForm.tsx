@@ -93,7 +93,7 @@ export default function SignupForm({
             เพื่อรับบริการเจาะเลือดที่บ้านอย่างปลอดภัยและรวดเร็ว
           </p>
         </div>
-        <span
+        {/* <span
           className={`rounded-full px-3 py-1 text-xs font-medium ${
             isLoggedIn
               ? "bg-emerald-50 text-emerald-700"
@@ -102,7 +102,7 @@ export default function SignupForm({
           aria-live="polite"
         >
           {isLoggedIn ? "เข้าสู่ระบบด้วย LINE แล้ว" : "ยังไม่ได้เข้าสู่ระบบ"}
-        </span>
+        </span> */}
       </div>
 
       {/* Card */}
