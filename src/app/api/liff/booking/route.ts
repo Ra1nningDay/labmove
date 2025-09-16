@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyLiffIdToken } from "@/server/lib/liffAuth";
 import { appendBooking, upsertBookingSession } from "@/server/repo/bookings";
-import { recordBooking } from "@/server/repo/bookingStore";
+import { recordBooking as _recordBooking } from "@/server/repo/bookingStore";
 import { geocodeTextServer } from "@/server/lib/geocode";
 import { pushMessage } from "@/server/line";
 import { bookingSummaryFlex, quickReplyMenu } from "@/server/lineMessages";
