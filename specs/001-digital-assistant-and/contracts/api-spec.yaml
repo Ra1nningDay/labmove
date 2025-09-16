@@ -1,0 +1,480 @@
+openapi: 3.0.0
+info:
+  title: LabMove Digital Assistant API
+  description: API contracts for at-home blood test service platform
+  version: 1.0.0
+  contact:
+    name: LabMove Team
+    email: dev@labmove.com
+
+servers:
+  - url: https://your-domain.com/api
+    description: Production server
+  - url: http://localhost:3000/api
+    description: Development server
+
+security:
+  - LIFFToken: []
+
+paths:
+  /liff/signup:
+    post:
+      summary: Patient Registration
+      description: Register new patient via LIFF with consent and profile information. Server validates LIFF ID token against LINE Login Channel ID and maps identity to line_user_id. Origin allowlist enforced.
+      security:
+        - LIFFToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+            examples:
+              complete_patient:
+                summary: Patient with hospital number
+                value:
+                  consent: true
+                  name: "สมศรี ใจดี"
+                  phone: "0812345678"
+                  hn: "HN123456"
+                  hospital: "โรงพยาบาลสงขลานครินทร์"
+                  referral: "นพ.สมชาย แพทย์ดี"
+              minimal_patient:
+                summary: Minimal required information
+                value:
+                  consent: true
+                  name: "จันทร์ เจริญ"
+                  phone: "0823456789"
+      responses:
+        "200":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiffOkResponse"
+        "400":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid LIFF token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: User already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /liff/booking:
+    post:
+      summary: Create Appointment Booking
+      description: Submit booking request for blood test service via LIFF. Booking is created with status "pending". Server may geocode address and stores a session snapshot. Origin allowlist enforced.
+      security:
+        - LIFFToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingRequest"
+            examples:
+              specific_date:
+                summary: Booking with specific date
+                value:
+                  address: "123 ถนนรัชดาภิเษก แขวงดินแดง เขตดินแดง กรุงเทพฯ 10400"
+                  bookingDate: "2025-09-20"
+                  note: "กรุณาโทรก่อนมา ห้อง 501"
+              flexible_date:
+                summary: Booking with date preference
+                value:
+                  address: "456 ซอยสุขุมวิท 21 แขวงคลองตันเหนือ เขตวัฒนา กรุงเทพฯ 10110"
+                  datePreference: "ช่วงเช้าวันจันทร์-ศุกร์"
+                  note: "มีลิฟต์ชั้น 15"
+      responses:
+        "200":
+          description: Booking created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiffOkResponse"
+        "400":
+          description: Invalid booking data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid LIFF token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /line/webhook:
+    post:
+      summary: LINE Webhook Handler
+      description: Process incoming LINE messages and postbacks
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEvent"
+            examples:
+              text_message:
+                summary: User text message
+                value:
+                  destination: "Uae2712d12345678901234567890ab"
+                  events:
+                    - type: "message"
+                      message:
+                        id: "msg123456"
+                        type: "text"
+                        text: "คุยกับผู้ช่วย"
+                      timestamp: 1694764800000
+                      source:
+                        type: "user"
+                        userId: "U4af4980629..."
+                      replyToken: "reply123456"
+              postback_event:
+                summary: User postback action
+                value:
+                  destination: "Uae2712d12345678901234567890ab"
+                  events:
+                    - type: "postback"
+                      postback:
+                        data: '{"action":"booking_details"}'
+                      timestamp: 1694764800000
+                      source:
+                        type: "user"
+                        userId: "U4af4980629..."
+                      replyToken: "reply123456"
+      responses:
+        "200":
+          description: Webhook processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+  /bookings:
+    get:
+      summary: Get Confirmed Bookings (Phase 1)
+      description: Retrieve geo-enriched confirmed bookings for map display. Admin dashboard only; protected by same-origin policy (origin allowlist). No bearer token required.
+      security: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled]
+          example: confirmed
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2025-09-20"
+      responses:
+        "200":
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bookings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BookingWithLocation"
+                  total:
+                    type: integer
+                    example: 5
+
+  /admin/bookings/{id}/confirm:
+    post:
+      summary: Confirm Booking (Phase 2)
+      description: Transition booking from pending to confirmed status. Requires admin authentication (scheme TBD).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "booking_001"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  example: "Confirmed by admin staff"
+      responses:
+        "200":
+          description: Booking confirmed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Booking cannot be confirmed (wrong status)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    LIFFToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: LIFF ID Token from LINE Login
+
+  schemas:
+    SignupRequest:
+      type: object
+      required:
+        - consent
+        - name
+        - phone
+      properties:
+        consent:
+          type: boolean
+          description: User consent for data processing
+          example: true
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          description: Patient full name
+          example: "สมศรี ใจดี"
+        phone:
+          type: string
+          pattern: "^0[0-9]{8,9}$"
+          description: Thai mobile phone number
+          example: "0812345678"
+        hn:
+          type: string
+          description: Hospital number (optional)
+          example: "HN123456"
+        hospital:
+          type: string
+          description: Associated hospital name (optional)
+          example: "โรงพยาบาลสงขลานครินทร์"
+        referral:
+          type: string
+          description: Referral source or doctor (optional)
+          example: "นพ.สมชาย แพทย์ดี"
+
+    LiffOkResponse:
+      type: object
+      description: Minimal LIFF submission response (Phase 1)
+      properties:
+        ok:
+          type: boolean
+          example: true
+        line_user_id:
+          type: string
+          description: LINE user ID (subject) mapped from LIFF token
+          example: "Uae2712d12345678901234567890ab"
+
+    BookingRequest:
+      type: object
+      required:
+        - address
+      properties:
+        address:
+          type: string
+          minLength: 10
+          description: Service delivery address
+          example: "123 ถนนรัชดาภิเษก แขวงดินแดง เขตดินแดง กรุงเทพฯ 10400"
+        bookingDate:
+          type: string
+          format: date
+          description: Specific requested date (YYYY-MM-DD)
+          example: "2025-09-20"
+        datePreference:
+          type: string
+          description: Flexible date preference description
+          example: "ช่วงเช้าวันจันทร์-ศุกร์"
+        note:
+          type: string
+          description: Special instructions or notes
+          example: "กรุณาโทรก่อนมา ห้อง 501"
+
+    # BookingResponse reserved for Phase 2 when booking IDs are returned
+    BookingResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        bookingId:
+          type: string
+          nullable: true
+          example: null
+
+    BookingWithLocation:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "booking_001"
+        patientName:
+          type: string
+          example: "สมศรี ใจดี"
+        address:
+          type: string
+          example: "123 ถนนรัชดาภิเษก แขวงดินแดง เขตดินแดง กรุงเทพฯ 10400"
+        location:
+          type: object
+          properties:
+            latitude:
+              type: number
+              format: float
+              example: 13.7563
+            longitude:
+              type: number
+              format: float
+              example: 100.5018
+        bookingDate:
+          type: string
+          format: date
+          example: "2025-09-20"
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
+          example: "confirmed"
+        assignedOfficer:
+          type: object
+          properties:
+            id:
+              type: string
+              example: "officer_001"
+            name:
+              type: string
+              example: "พยาบาล สมหวัง"
+
+    WebhookEvent:
+      type: object
+      required:
+        - destination
+        - events
+      properties:
+        destination:
+          type: string
+          description: Bot user ID
+          example: "Uae2712d12345678901234567890ab"
+        events:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/MessageEvent"
+              - $ref: "#/components/schemas/PostbackEvent"
+
+    MessageEvent:
+      type: object
+      required:
+        - type
+        - message
+        - timestamp
+        - source
+        - replyToken
+      properties:
+        type:
+          type: string
+          enum: [message]
+        message:
+          type: object
+          properties:
+            id:
+              type: string
+            type:
+              type: string
+              enum: [text, image, video, audio, file, location, sticker]
+            text:
+              type: string
+        timestamp:
+          type: integer
+          format: int64
+        source:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [user, group, room]
+            userId:
+              type: string
+        replyToken:
+          type: string
+
+    PostbackEvent:
+      type: object
+      required:
+        - type
+        - postback
+        - timestamp
+        - source
+        - replyToken
+      properties:
+        type:
+          type: string
+          enum: [postback]
+        postback:
+          type: object
+          properties:
+            data:
+              type: string
+              description: JSON string with action data
+        timestamp:
+          type: integer
+          format: int64
+        source:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [user, group, room]
+            userId:
+              type: string
+        replyToken:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Invalid request data"
+        code:
+          type: string
+          example: "VALIDATION_ERROR"
+        details:
+          type: object
+          description: Additional error details (optional)
