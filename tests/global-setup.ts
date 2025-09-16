@@ -5,22 +5,24 @@
  * before running the test suite.
  */
 
+import dotenv from "dotenv";
+
 export default async function globalSetup() {
   // Load test environment variables
-  const dotenv = require("dotenv");
   dotenv.config({ path: ".env.test" });
 
   console.log("🧪 Setting up global test environment...");
 
   // Set up test-specific environment variables
-  (process.env as any).NODE_ENV = "test";
-  (process.env as any).REDIS_DB = "15"; // Use separate Redis DB for tests
-  (process.env as any).SENTRY_ENVIRONMENT = "test";
+  const env = process.env as Record<string, string | undefined>;
+  env.NODE_ENV = "test";
+  env.REDIS_DB = "15"; // Use separate Redis DB for tests
+  env.SENTRY_ENVIRONMENT = "test";
 
   // Disable external service calls in tests by default
-  (process.env as any).GOOGLE_SHEETS_ENABLED = "false";
-  (process.env as any).LINE_MESSAGING_ENABLED = "false";
-  (process.env as any).SENTRY_ENABLED = "false";
+  env.GOOGLE_SHEETS_ENABLED = "false";
+  env.LINE_MESSAGING_ENABLED = "false";
+  env.SENTRY_ENABLED = "false";
 
   console.log("✅ Global test environment ready");
 }

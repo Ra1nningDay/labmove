@@ -18,6 +18,7 @@ import type {
 } from "@/server/types/api";
 
 describe("Contract: POST /api/line/webhook", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
   const webhookEndpoint = "/api/line/webhook";
   const mockChannelSecret = "mock_channel_secret_12345";
@@ -49,7 +50,7 @@ describe("Contract: POST /api/line/webhook", () => {
           res.end("internal server error");
         }
       });
-    } catch (error) {
+    } catch {
       console.log("Expected failure: Next.js app not ready for testing");
       // This is expected to fail in TDD - we haven't implemented the API yet
     }
@@ -577,7 +578,7 @@ describe("Contract: POST /api/line/webhook", () => {
             message: { id: "msg_valid", type: "text", text: "Valid message" },
           },
           {
-            type: "unknown_event_type" as any, // Invalid event type
+            type: "unknown_event_type" as string, // Invalid event type for testing
             source: { userId: testUtils.generateLineUserId() },
             timestamp: Date.now(),
             mode: "active",

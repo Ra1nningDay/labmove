@@ -4,20 +4,20 @@
  * Cleans up test environment and closes connections after test suite completion.
  */
 
+import Redis from "ioredis";
+
 export default async function globalTeardown() {
   console.log("🧪 Tearing down global test environment...");
 
   // Clean up Redis test data
   if (process.env.REDIS_HOST) {
     try {
-      const Redis = require("ioredis");
       const redis = new Redis({
         host: process.env.REDIS_HOST,
         port: parseInt(process.env.REDIS_PORT || "6379"),
         db: parseInt(process.env.REDIS_DB || "15"),
         password: process.env.REDIS_PASSWORD,
         maxRetriesPerRequest: 1,
-        retryDelayOnFailover: 100,
         connectTimeout: 2000,
         commandTimeout: 1000,
       });

@@ -6,7 +6,7 @@
 
 // Extend Jest matchers
 expect.extend({
-  toBeISODateString(received: any) {
+  toBeISODateString(received: unknown) {
     const pass = typeof received === "string" && !isNaN(Date.parse(received));
     if (pass) {
       return {
@@ -21,7 +21,7 @@ expect.extend({
     }
   },
 
-  toBeLineUserId(received: any) {
+  toBeLineUserId(received: unknown) {
     const pass =
       typeof received === "string" &&
       received.startsWith("U") &&
@@ -40,7 +40,7 @@ expect.extend({
     }
   },
 
-  toBeThaiPhoneNumber(received: any) {
+  toBeThaiPhoneNumber(received: unknown) {
     const pass = typeof received === "string" && /^0[0-9]{8,9}$/.test(received);
     if (pass) {
       return {
@@ -59,7 +59,7 @@ expect.extend({
 });
 
 // Global test utilities
-(global as any).testUtils = {
+(global as Record<string, unknown>).testUtils = {
   /**
    * Generate a mock LINE User ID
    */
@@ -117,7 +117,7 @@ expect.extend({
 
 // Console setup for tests
 const originalConsoleError = console.error;
-console.error = (...args: any[]) => {
+console.error = (...args: unknown[]) => {
   // Suppress expected error logs in tests
   const message = args[0]?.toString() || "";
   if (
@@ -135,6 +135,7 @@ console.error = (...args: any[]) => {
 export {};
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace jest {
     interface Matchers<R> {
       toBeISODateString(): R;

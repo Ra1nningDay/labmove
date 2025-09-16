@@ -16,6 +16,7 @@ import type {
 } from "@/server/types/api";
 
 describe("Contract: GET /api/geocode", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
   const geocodeEndpoint = "/api/geocode";
 
@@ -46,7 +47,7 @@ describe("Contract: GET /api/geocode", () => {
           res.end("internal server error");
         }
       });
-    } catch (error) {
+    } catch {
       console.log("Expected failure: Next.js app not ready for testing");
       // This is expected to fail in TDD - we haven't implemented the API yet
     }
