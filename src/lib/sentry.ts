@@ -38,14 +38,14 @@ export function initSentry() {
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
 
     // Scrub PII from error reports
-    beforeSend(event: Sentry.ErrorEvent, hint: Sentry.EventHint) {
+    beforeSend(event: Sentry.ErrorEvent, _hint: Sentry.EventHint) {
       return scrubPII(event);
     },
 
     // Scrub PII from breadcrumbs
     beforeBreadcrumb(
       breadcrumb: Sentry.Breadcrumb,
-      hint?: Sentry.BreadcrumbHint
+      _hint?: Sentry.BreadcrumbHint
     ) {
       return scrubPIIFromBreadcrumb(breadcrumb);
     },
@@ -147,6 +147,7 @@ function scrubPIIFromBreadcrumb(
 /**
  * Recursively scrub PII fields from object
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function scrubObject(obj: any): any {
   if (!obj || typeof obj !== "object") return obj;
 
@@ -154,7 +155,7 @@ function scrubObject(obj: any): any {
     return obj.map((item) => scrubObject(item));
   }
 
-  const scrubbed: any = {};
+  const scrubbed: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (
       PII_FIELDS.some((field) =>

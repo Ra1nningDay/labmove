@@ -301,7 +301,7 @@ export async function checkRateLimit(
  */
 export async function setUserSession(
   userId: string,
-  sessionData: Record<string, any>,
+  sessionData: Record<string, unknown>,
   ttlSeconds: number = 24 * 60 * 60 // 24 hours
 ): Promise<void> {
   try {
@@ -324,7 +324,7 @@ export async function setUserSession(
  */
 export async function getUserSession(
   userId: string
-): Promise<Record<string, any> | null> {
+): Promise<Record<string, unknown> | null> {
   try {
     const client = await getRedisClient();
     const key = `session:${userId}`;
@@ -356,7 +356,7 @@ export async function clearUserSession(userId: string): Promise<void> {
  */
 export async function cacheBookingConfirmation(
   confirmationId: string,
-  bookingData: Record<string, any>,
+  bookingData: Record<string, unknown>,
   ttlSeconds: number = 600 // 10 minutes
 ): Promise<void> {
   try {
@@ -374,7 +374,7 @@ export async function cacheBookingConfirmation(
  */
 export async function getCachedBookingConfirmation(
   confirmationId: string
-): Promise<Record<string, any> | null> {
+): Promise<Record<string, unknown> | null> {
   try {
     const client = await getRedisClient();
     const key = `booking_confirmation:${confirmationId}`;
