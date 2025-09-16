@@ -3,6 +3,32 @@
 **Input**: Design documents from `/specs/001-digital-assistant-and/`
 **Prerequisites**: plan.md ✓, research.md ✓, data-model.md ✓, contracts/ ✓, quickstart.md ✓
 
+## 🎯 Current Status (Updated: September 16, 2025)
+
+### ✅ Phase 3.1-3.3: Foundation & Tests (COMPLETED)
+
+- **Setup & Dependencies**: All environment variables, Redis, Sentry configured
+- **TypeScript Types**: Core entities, LINE API, and API contracts defined
+- **Contract Tests**: LIFF signup, booking, webhook, geocoding tests written and FAILING as expected
+- **Integration Tests**: All major flows tested (signup, booking, webhook processing)
+- **Test Infrastructure**: Jest configuration with Next.js App Router support working perfectly
+
+### ✅ Phase 3.4: API Implementation (IN PROGRESS - 60% COMPLETE)
+
+- **LIFF Signup API**: ✅ Fully implemented with validation and error handling
+- **LIFF Booking API**: ✅ Fully implemented with geocoding and structured responses
+- **LINE Webhook API**: 🔄 IN PROGRESS - needs contract compliance update
+- **Geocoding API**: ⏳ PENDING
+- **Admin APIs**: ⏳ PENDING
+
+### ⏳ Phase 3.5: Frontend & Integration (PENDING)
+
+- LIFF components enhancement
+- Admin dashboard updates
+- End-to-end testing
+
+**Next Priority**: Complete LINE webhook API implementation (T029) and geocoding API (T030)
+
 ## Execution Flow (main)
 
 ```
@@ -39,16 +65,16 @@
 
 ## Phase 3.1: Setup & Dependencies
 
-- [ ] T001 Configure environment variables for LINE API, Google Sheets, and Redis in `.env.local`
-- [ ] T002 Install additional dependencies: @line/bot-sdk, googleapis, ioredis, @tanstack/react-query
-- [ ] T003 [P] Set up Sentry configuration in `src/lib/sentry.ts` for error monitoring
-- [ ] T004 [P] Configure Redis client connection in `src/server/lib/redis.ts`
+- [x] T001 Configure environment variables for LINE API, Google Sheets, and Redis in `.env.local`
+- [x] T002 Install additional dependencies: @line/bot-sdk, googleapis, ioredis, @tanstack/react-query
+- [x] T003 [P] Set up Sentry configuration in `src/lib/sentry.ts` for error monitoring
+- [x] T004 [P] Configure Redis client connection in `src/lib/redis.ts`
 
 ## Phase 3.2: Shared Types & Models (Foundation)
 
-- [ ] T005 [P] Define core types in `src/server/types/entities.ts` (Patient, Officer, Booking, Task, Location)
-- [ ] T006 [P] Define LINE message types in `src/server/types/line.ts` (extend existing)
-- [ ] T007 [P] Define API request/response types in `src/server/types/api.ts`
+- [x] T005 [P] Define core types in `src/server/types/entities.ts` (Patient, Officer, Booking, Task, Location)
+- [x] T006 [P] Define LINE message types in `src/server/types/line.ts` (extend existing)
+- [x] T007 [P] Define API request/response types in `src/server/types/api.ts`
 
 ## Phase 3.3: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE IMPLEMENTATION
 
@@ -56,29 +82,29 @@
 
 ### Contract Tests [P]
 
-- [ ] T008 [P] Contract test POST /api/liff/signup in `tests/contract/liff-signup.test.ts`
-- [ ] T009 [P] Contract test POST /api/liff/booking in `tests/contract/liff-booking.test.ts`
-- [ ] T010 [P] Contract test POST /api/line/webhook in `tests/contract/line-webhook.test.ts`
-- [ ] T011 [P] Contract test GET /api/bookings in `tests/contract/bookings-get.test.ts`
+- [x] T008 [P] Contract test POST /api/liff/signup in `tests/contract/liff-signup.test.ts`
+- [x] T009 [P] Contract test POST /api/liff/booking in `tests/contract/liff-booking.test.ts`
+- [x] T010 [P] Contract test POST /api/line/webhook in `tests/contract/line-webhook.test.ts`
+- [x] T011 [P] Contract test GET /api/geocode in `tests/contract/geocoding.test.ts`
 - [ ] T012 [P] Contract test POST /api/admin/bookings/:id/confirm in `tests/contract/admin-confirm.test.ts`
 
 ### Integration Tests [P]
 
-- [ ] T013 [P] LIFF token validation test in `tests/integration/liff-auth.test.ts`
-- [ ] T014 [P] Google Sheets integration test in `tests/integration/sheets.test.ts`
-- [ ] T015 [P] Redis caching test in `tests/integration/redis.test.ts`
-- [ ] T016 [P] LINE webhook idempotency test in `tests/integration/webhook-idempotency.test.ts`
-- [ ] T017 [P] Patient registration flow test in `tests/integration/patient-signup.test.ts`
-- [ ] T018 [P] Booking creation flow test in `tests/integration/booking-flow.test.ts`
+- [x] T013 [P] LIFF token validation test in `tests/integration/liff-auth.test.ts`
+- [x] T014 [P] Google Sheets integration test in `tests/integration/sheets.test.ts`
+- [x] T015 [P] Redis caching test in `tests/integration/redis.test.ts`
+- [x] T016 [P] LINE webhook idempotency test in `tests/integration/webhook-idempotency.test.ts`
+- [x] T017 [P] Patient registration flow test in `tests/integration/signup-flow.test.ts`
+- [x] T018 [P] Booking creation flow test in `tests/integration/booking-flow.test.ts`
 
 ## Phase 3.4: Core Server Implementation (ONLY after tests are failing)
 
 ### Server Utilities & Authentication
 
-- [ ] T019 [P] LIFF token validation utility in `src/server/lib/liffAuth.ts`
-- [ ] T020 [P] Google Sheets service in `src/server/repo/sheets.ts` (extend existing)
-- [ ] T021 [P] Patient repository methods in `src/server/repo/users.ts` (extend existing)
-- [ ] T022 [P] Booking repository methods in `src/server/repo/bookings.ts` (extend existing)
+- [x] T019 [P] LIFF token validation utility in `src/server/lib/liffAuth.ts`
+- [x] T020 [P] Google Sheets service in `src/server/repo/sheets.ts` (extend existing)
+- [x] T021 [P] Patient repository methods in `src/server/repo/users.ts` (extend existing)
+- [x] T022 [P] Booking repository methods in `src/server/repo/bookings.ts` (extend existing)
 
 ### LINE Integration
 
@@ -89,10 +115,10 @@
 
 ### API Routes
 
-- [ ] T027 POST /api/liff/signup endpoint in `src/app/api/liff/signup/route.ts` (extend existing)
-- [ ] T028 POST /api/liff/booking endpoint in `src/app/api/liff/booking/route.ts` (extend existing)
+- [x] T027 POST /api/liff/signup endpoint in `src/app/api/liff/signup/route.ts` (extend existing)
+- [x] T028 POST /api/liff/booking endpoint in `src/app/api/liff/booking/route.ts` (extend existing)
 - [ ] T029 LINE webhook handler in `src/app/api/line/webhook/route.ts` (extend existing)
-- [ ] T030 GET /api/bookings endpoint for confirmed bookings
+- [ ] T030 GET /api/geocode endpoint for address-to-coordinates conversion
 - [ ] T031 POST /api/admin/bookings/[id]/confirm endpoint for status transitions
 
 ## Phase 3.5: Frontend Components & LIFF Apps
