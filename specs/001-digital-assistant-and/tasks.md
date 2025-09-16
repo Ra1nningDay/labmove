@@ -86,14 +86,14 @@
 - [x] T009 [P] Contract test POST /api/liff/booking in `tests/contract/liff-booking.test.ts`
 - [x] T010 [P] Contract test POST /api/line/webhook in `tests/contract/line-webhook.test.ts`
 - [x] T011 [P] Contract test GET /api/geocode in `tests/contract/geocode.test.ts`
-- [ ] T012 [P] Contract test POST /api/admin/bookings/:id/confirm in `tests/contract/admin-confirm.test.ts`
+- [x] T012 [P] Contract test POST /api/admin/bookings/:id/confirm in `tests/contract/admin-confirm.test.ts`
 
 ### Integration Tests [P]
 
-- [ ] T013 [P] LIFF token validation test in `tests/integration/liff-auth.test.ts` (planned)
-- [ ] T014 [P] Google Sheets integration test in `tests/integration/sheets.test.ts` (planned)
-- [ ] T015 [P] Redis caching test in `tests/integration/redis.test.ts` (planned)
-- [ ] T016 [P] LINE webhook idempotency test in `tests/integration/webhook-idempotency.test.ts` (planned)
+- [x] T013 [P] LIFF token validation test in `tests/integration/liff-auth.test.ts` (planned)
+- [x] T014 [P] Google Sheets integration test in `tests/integration/sheets.test.ts` (planned)
+- [x] T015 [P] Redis caching test in `tests/integration/redis.test.ts` (planned)
+- [x] T016 [P] LINE webhook idempotency test in `tests/integration/webhook-idempotency.test.ts` (planned)
 - [x] T017 [P] Patient registration flow test in `tests/integration/signup-flow.test.ts`
 - [x] T018 [P] Booking creation flow test in `tests/integration/booking-flow.test.ts`
 
