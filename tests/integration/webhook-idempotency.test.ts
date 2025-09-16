@@ -19,19 +19,12 @@ jest.mock("@/server/agent/router", () => ({
 const mockReplyMessage = jest.fn(async () => {});
 
 jest.mock("@/server/line", () => {
-  const cryptoModule = require("crypto") as typeof import("crypto");
   return {
     verifyLineSignature: jest.fn((raw: string, signature: string) => {
       const secret = process.env.LINE_CHANNEL_SECRET || "";
       if (!secret || !signature) return false;
-      const expected = cryptoModule
-        .createHmac("sha256", secret)
-        .update(raw)
-        .digest("base64");
-      return cryptoModule.timingSafeEqual(
-        Buffer.from(expected),
-        Buffer.from(signature)
-      );
+      const expected = crypto.createHmac("sha256", secret).update(raw).digest("base64");
+      return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
     }),
     replyMessage: (...args: Parameters<typeof mockReplyMessage>) =>
       mockReplyMessage(...args),
@@ -95,7 +88,7 @@ describe("Integration: LINE webhook idempotency", () => {
           webhookEventId: "event-1",
           deliveryContext: { isRedelivery: false },
           source: { userId: "user-1" },
-          message: { type: "text", id: "msg-1", text: "ÊÇÑÊ´Õ" },
+          message: { type: "text", id: "msg-1", text: "ï¿½ï¿½ï¿½Ê´ï¿½" },
         },
       ],
     };

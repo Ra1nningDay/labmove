@@ -71,19 +71,12 @@ jest.mock("@/server/lineMessages", () => ({
 const mockReplyMessage = jest.fn(async () => {});
 
 jest.mock("@/server/line", () => {
-  const cryptoModule = require("crypto") as typeof import("crypto");
   return {
     verifyLineSignature: jest.fn((raw: string, signature: string) => {
       const secret = process.env.LINE_CHANNEL_SECRET || "";
       if (!secret || !signature) return false;
-      const expected = cryptoModule
-        .createHmac("sha256", secret)
-        .update(raw)
-        .digest("base64");
-      return cryptoModule.timingSafeEqual(
-        Buffer.from(expected),
-        Buffer.from(signature)
-      );
+      const expected = crypto.createHmac("sha256", secret).update(raw).digest("base64");
+      return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
     }),
     replyMessage: (...args: Parameters<typeof mockReplyMessage>) =>
       mockReplyMessage(...args),
@@ -114,11 +107,11 @@ async function invokeWebhook(
 async function invokeWebhook(
   payload: LineWebhookRequest | string,
   options?: InvokeOptions
-): Promise<{ status: number; body: any }>;
+): Promise<{ status: number; body: unknown }>;
 async function invokeWebhook(
   payload: LineWebhookRequest | string,
   options: InvokeOptions = {}
-): Promise<{ status: number; body: any }> {
+): Promise<{ status: number; body: unknown }> {
   const rawBody =
     typeof payload === "string" ? payload : JSON.stringify(payload ?? {});
   const headers = new Headers({ "content-type": "application/json" });
@@ -137,7 +130,7 @@ async function invokeWebhook(
   );
   const response = await POST(request);
   const body = await response.json();
-  return { status: response.status, body };
+  return { status: response.status, body: body as unknown };
 }
 
 describe("Contract: POST /api/line/webhook", () => {
