@@ -7,7 +7,7 @@
  * Tests the patient registration flow through LINE LIFF interface.
  */
 
-import request from "supertest";
+import { createTestApp, request } from "../helpers/app";
 import type {
   LiffSignupRequest,
   LiffSignupResponse,
@@ -16,50 +16,16 @@ import type {
 } from "@/server/types/api";
 
 describe("Contract: POST /api/liff/signup", () => {
-  let app: any;
+  let app: ReturnType<typeof createTestApp>;
   const signupEndpoint = "/api/liff/signup";
 
   beforeAll(async () => {
-    // This will fail until we implement the Next.js API handler
-    try {
-      // Import the Next.js app for testing
-      const { createServer } = await import("http");
-      const { parse } = await import("url");
-      const next = await import("next");
-
-      const dev = process.env.NODE_ENV !== "production";
-      const hostname = "localhost";
-      const port = 3001; // Test port
-
-      const nextApp = next.default({ dev, hostname, port });
-      await nextApp.prepare();
-
-      const handle = nextApp.getRequestHandler();
-
-      app = createServer(async (req, res) => {
-        try {
-          const parsedUrl = parse(req.url!, true);
-          await handle(req, res, parsedUrl);
-        } catch (err) {
-          console.error("Error occurred handling", req.url, err);
-          res.statusCode = 500;
-          res.end("internal server error");
-        }
-      });
-    } catch (error) {
-      console.log("Expected failure: Next.js app not ready for testing");
-      // This is expected to fail in TDD - we haven't implemented the API yet
-    }
-  });
-
-  afterAll(async () => {
-    if (app && app.close) {
-      await new Promise((resolve) => app.close(resolve));
-    }
+    app = createTestApp();
   });
 
   beforeEach(() => {
-    // Reset any mocks or test state
+    // Clear any cached modules between tests to ensure clean state
+    jest.clearAllMocks();
   });
 
   describe("Successful Registration", () => {
@@ -94,14 +60,15 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until we implement the API handler
       const response = await request(app)
         .post(signupEndpoint)
-        .send(validSignupRequest)
-        .expect("Content-Type", /json/)
-        .expect(201);
+        .send(validSignupRequest);
 
-      const responseBody: LiffSignupResponse = response.body.data;
+      expect(response.status).toBe(201);
+
+      const responseBody: LiffSignupResponse =
+        response.body as LiffSignupResponse;
 
       // Contract assertions - these define what the API MUST return
-      expect(response.body.success).toBe(true);
+      expect((response.body as { success: boolean }).success).toBe(true);
       expect(responseBody.patient_id).toBeDefined();
       expect(responseBody.patient_id).toMatch(/^patient_[a-zA-Z0-9]{12}$/);
       expect(responseBody.line_user_id).toBeLineUserId();
@@ -109,9 +76,16 @@ describe("Contract: POST /api/liff/signup", () => {
       expect(responseBody.next_step).toBeUndefined(); // Complete registration
 
       // Ensure response includes proper metadata
-      expect(response.body.meta).toBeDefined();
-      expect(response.body.meta.timestamp).toBeISODateString();
-      expect(response.body.meta.request_id).toBeDefined();
+      expect(
+        (response.body as { meta: { timestamp: string; request_id: string } })
+          .meta
+      ).toBeDefined();
+      expect(
+        (response.body as { meta: { timestamp: string } }).meta.timestamp
+      ).toBeISODateString();
+      expect(
+        (response.body as { meta: { request_id: string } }).meta.request_id
+      ).toBeDefined();
     });
 
     it("should register patient with minimal required data", async () => {
@@ -132,12 +106,14 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(signupEndpoint)
-        .send(minimalSignupRequest)
-        .expect(201);
+        .send(minimalSignupRequest);
 
-      const responseBody: LiffSignupResponse = response.body.data;
+      expect(response.status).toBe(201);
+      const responseBody: LiffSignupResponse = (
+        response.body as { data: LiffSignupResponse }
+      ).data;
 
-      expect(response.body.success).toBe(true);
+      expect((response.body as { success: boolean }).success).toBe(true);
       expect(responseBody.patient_id).toBeDefined();
       expect(responseBody.line_user_id).toBeLineUserId();
       expect(responseBody.registration_complete).toBe(true);
@@ -160,12 +136,15 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(signupEndpoint)
-        .send(existingUserRequest)
-        .expect(201);
+        .send(existingUserRequest);
 
-      const responseBody: LiffSignupResponse = response.body.data;
+      expect(response.status).toBe(201);
 
-      expect(response.body.success).toBe(true);
+      const responseBody: LiffSignupResponse = (
+        response.body as { data: LiffSignupResponse }
+      ).data;
+
+      expect((response.body as { success: boolean }).success).toBe(true);
       expect(responseBody.patient_id).toBeDefined();
       expect(responseBody.line_user_id).toBeLineUserId();
       expect(responseBody.registration_complete).toBe(true);
@@ -189,10 +168,12 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(signupEndpoint)
-        .send(invalidRequest)
-        .expect(400);
+        .send(invalidRequest);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      expect(response.status).toBe(400);
+
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("VALIDATION_ERROR");
@@ -222,10 +203,11 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(signupEndpoint)
-        .send(invalidPhoneRequest)
-        .expect(400);
+        .send(invalidPhoneRequest);
+      expect(response.status).toBe(400);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("VALIDATION_ERROR");
@@ -254,10 +236,11 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(signupEndpoint)
-        .send(noConsentRequest)
-        .expect(400);
+        .send(noConsentRequest);
+      expect(response.status).toBe(400);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("VALIDATION_ERROR");
@@ -288,10 +271,11 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(signupEndpoint)
-        .send(invalidTokenRequest)
-        .expect(401);
+        .send(invalidTokenRequest);
+      expect(response.status).toBe(401);
 
-      const errorResponse: AuthenticationErrorResponse = response.body;
+      const errorResponse: AuthenticationErrorResponse =
+        response.body as AuthenticationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("AUTHENTICATION_ERROR");
@@ -315,10 +299,11 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(signupEndpoint)
-        .send(noTokenRequest)
-        .expect(401);
+        .send(noTokenRequest);
+      expect(response.status).toBe(401);
 
-      const errorResponse: AuthenticationErrorResponse = response.body;
+      const errorResponse: AuthenticationErrorResponse =
+        response.body as AuthenticationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("AUTHENTICATION_ERROR");
@@ -351,7 +336,13 @@ describe("Contract: POST /api/liff/signup", () => {
       const rateLimitedResponses = responses.filter((r) => r.status === 429);
       expect(rateLimitedResponses.length).toBeGreaterThan(0);
 
-      const rateLimitResponse = rateLimitedResponses[0].body;
+      const rateLimitResponse = rateLimitedResponses[0].body as {
+        success: boolean;
+        error: {
+          code: string;
+          details: { retry_after_seconds: number };
+        };
+      };
       expect(rateLimitResponse.success).toBe(false);
       expect(rateLimitResponse.error.code).toBe("RATE_LIMIT_EXCEEDED");
       expect(
@@ -378,20 +369,25 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until implementation
       const firstResponse = await request(app)
         .post(signupEndpoint)
-        .send(duplicateRequest)
-        .expect(201);
+        .send(duplicateRequest);
+      expect(firstResponse.status).toBe(201);
 
       // Immediate duplicate request should return same result
       const secondResponse = await request(app)
         .post(signupEndpoint)
-        .send(duplicateRequest)
-        .expect(200); // 200 for existing, not 201 for created
-
-      expect(firstResponse.body.data.patient_id).toBe(
-        secondResponse.body.data.patient_id
+        .send(duplicateRequest);
+      expect(
+        (firstResponse.body as { data: { patient_id: string } }).data.patient_id
+      ).toBe(
+        (secondResponse.body as { data: { patient_id: string } }).data
+          .patient_id
       );
-      expect(firstResponse.body.data.line_user_id).toBe(
-        secondResponse.body.data.line_user_id
+      expect(
+        (firstResponse.body as { data: { line_user_id: string } }).data
+          .line_user_id
+      ).toBe(
+        (secondResponse.body as { data: { line_user_id: string } }).data
+          .line_user_id
       );
     });
   });
@@ -414,12 +410,12 @@ describe("Contract: POST /api/liff/signup", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(signupEndpoint)
-        .send(thaiTextRequest)
-        .expect(201);
+        .send(thaiTextRequest);
+      expect(response.status).toBe(201);
 
       // Name should be trimmed
       // Address should preserve Thai characters but sanitize unsafe content
-      expect(response.body.data).toBeDefined();
+      expect((response.body as { data: unknown }).data).toBeDefined();
     });
   });
 });
