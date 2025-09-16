@@ -38,9 +38,17 @@ export async function POST(req: NextRequest) {
 
   const events = body.events || [];
   for (const ev of events) {
-    const userId = ev.source?.userId;
+    // Extract userId safely with type checking
+    const userId =
+      ev.source && "userId" in ev.source ? ev.source.userId : undefined;
+
+    // Skip events without userId (group/room events without user context)
+    if (!userId) continue;
+
+    // Skip events that don't support replies (like unfollow)
+    if (!("replyToken" in ev) || !ev.replyToken) continue;
+
     const replyToken = ev.replyToken;
-    if (!userId || !replyToken) continue;
 
     if (ev.type === "follow") {
       await replyMessage(replyToken, [
@@ -247,11 +255,16 @@ export async function POST(req: NextRequest) {
 
       if (payload.action === "booking_details") {
         // Try latest booking; fall back to session
-        const latest = (await getLatestBookingByUserId(userId)) ||
+        const latest =
+          (await getLatestBookingByUserId(userId)) ||
           (await getBookingSessionByUserId(userId));
         const msg = latest
           ? bookingDetailsFlex(latest)
-          : ({ type: "text", text: "ยังไม่มีข้อมูลการจอง", quickReply: quickReplyMenu() } as const);
+          : ({
+              type: "text",
+              text: "ยังไม่มีข้อมูลการจอง",
+              quickReply: quickReplyMenu(),
+            } as const);
         await replyMessage(replyToken, [msg]);
         continue;
       }
@@ -261,7 +274,11 @@ export async function POST(req: NextRequest) {
         const msg =
           members.length > 0
             ? profileListFlex(members)
-            : ({ type: "text", text: "ยังไม่มีข้อมูลสมาชิก กรุณาเปิด LIFF สมัครสมาชิก", quickReply: quickReplyMenu() } as const);
+            : ({
+                type: "text",
+                text: "ยังไม่มีข้อมูลสมาชิก กรุณาเปิด LIFF สมัครสมาชิก",
+                quickReply: quickReplyMenu(),
+              } as const);
         await replyMessage(replyToken, [msg]);
         continue;
       }
