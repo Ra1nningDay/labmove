@@ -17,7 +17,7 @@
 
 - **LIFF Signup API**: ✅ Fully implemented with validation and error handling
 - **LIFF Booking API**: ✅ Fully implemented with geocoding and structured responses
-- **LINE Webhook API**: 🔄 IN PROGRESS - needs contract compliance update
+- **LINE Webhook API**: Completed with updated handler + contract tests
 - **Geocoding API**: Done (GET/POST handlers live)
 - **Admin APIs**: ⏳ PENDING
 
@@ -27,7 +27,7 @@
 - Admin dashboard updates
 - End-to-end testing
 
-**Next Priority**: Complete LINE webhook API implementation (T029), deliver admin confirmation endpoint (T031), and backfill missing integration tests (T013-T016)
+**Next Priority**: Backfill missing integration tests (T013-T016)
 
 ## Execution Flow (main)
 
@@ -117,9 +117,9 @@
 
 - [x] T027 POST /api/liff/signup endpoint in `src/app/api/liff/signup/route.ts` (extend existing)
 - [x] T028 POST /api/liff/booking endpoint in `src/app/api/liff/booking/route.ts` (extend existing)
-- [ ] T029 LINE webhook handler in `src/app/api/line/webhook/route.ts` (extend existing)
+- [x] T029 LINE webhook handler in `src/app/api/line/webhook/route.ts` (extend existing)
 - [x] T030 GET /api/geocode endpoint in `src/app/api/geocode/route.ts` (GET + POST support with caching)
-- [ ] T031 POST /api/admin/bookings/[id]/confirm endpoint for status transitions
+- [x] T031 POST /api/admin/bookings/[id]/confirm endpoint for status transitions
 
 ## Phase 3.5: Frontend Components & LIFF Apps
 
