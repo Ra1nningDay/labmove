@@ -1,4 +1,3 @@
-
 /**
  * Contract Test: POST /api/line/webhook
  *
@@ -42,8 +41,9 @@ const mockGetLatestBookingByUserId = jest.fn(async () => null);
 const mockGetBookingSessionByUserId = jest.fn(async () => null);
 
 jest.mock("@/server/repo/bookings", () => ({
-  getLatestBookingByUserId: (...args: Parameters<typeof mockGetLatestBookingByUserId>) =>
-    mockGetLatestBookingByUserId(...args),
+  getLatestBookingByUserId: (
+    ...args: Parameters<typeof mockGetLatestBookingByUserId>
+  ) => mockGetLatestBookingByUserId(...args),
   getBookingSessionByUserId: (
     ...args: Parameters<typeof mockGetBookingSessionByUserId>
   ) => mockGetBookingSessionByUserId(...args),
@@ -109,8 +109,12 @@ type InvokeOptions = {
 
 async function invokeWebhook(
   payload: LineWebhookRequest,
-  options: InvokeOptions = {}
+  options?: InvokeOptions
 ): Promise<{ status: number; body: LineWebhookResponse }>; // overload for normal payload
+async function invokeWebhook(
+  payload: LineWebhookRequest | string,
+  options?: InvokeOptions
+): Promise<{ status: number; body: any }>;
 async function invokeWebhook(
   payload: LineWebhookRequest | string,
   options: InvokeOptions = {}
@@ -150,12 +154,9 @@ describe("Contract: POST /api/line/webhook", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    [
-      "test-user",
-      "dup-user",
-      "redeliver",
-      "service_down_test_user",
-    ].forEach((id) => clearUserMeta(id));
+    ["test-user", "dup-user", "redeliver", "service_down_test_user"].forEach(
+      (id) => clearUserMeta(id)
+    );
   });
 
   describe("Successful Webhook Processing", () => {
@@ -174,7 +175,7 @@ describe("Contract: POST /api/line/webhook", () => {
             message: {
               id: "msg_1",
               type: "text",
-              text: "àÁ¹Ù",
+              text: "ï¿½ï¿½ï¿½ï¿½",
             },
           },
         ],
@@ -279,7 +280,7 @@ describe("Contract: POST /api/line/webhook", () => {
         signatureOverride: generateLineSignature("{}", "wrong_secret"),
       });
 
-      const error = body as AuthenticationErrorResponse;
+      const error = body as unknown as AuthenticationErrorResponse;
       expect(status).toBe(401);
       expect(error.success).toBe(false);
       expect(error.error.code).toBe("WEBHOOK_AUTHENTICATION_ERROR");
@@ -295,7 +296,7 @@ describe("Contract: POST /api/line/webhook", () => {
         includeSignature: false,
       });
 
-      const error = body as AuthenticationErrorResponse;
+      const error = body as unknown as AuthenticationErrorResponse;
       expect(status).toBe(401);
       expect(error.error.code).toBe("WEBHOOK_AUTHENTICATION_ERROR");
     });
@@ -304,21 +305,26 @@ describe("Contract: POST /api/line/webhook", () => {
   describe("Validation Errors", () => {
     it("rejects invalid JSON", async () => {
       const rawBody = "{ invalid json }";
-      const { status, body } = await invokeWebhook("" as unknown as LineWebhookRequest, {
-        rawBody,
-        signatureOverride: generateLineSignature(rawBody, mockChannelSecret),
-      });
+      const { status, body } = await invokeWebhook(
+        "" as unknown as LineWebhookRequest,
+        {
+          rawBody,
+          signatureOverride: generateLineSignature(rawBody, mockChannelSecret),
+        }
+      );
 
-      const error = body as ValidationErrorResponse;
+      const error = body as unknown as ValidationErrorResponse;
       expect(status).toBe(400);
       expect(error.error.code).toBe("VALIDATION_ERROR");
     });
 
     it("rejects payload with missing required fields", async () => {
-      const payload = { events: "not_an_array" } as unknown as LineWebhookRequest;
+      const payload = {
+        events: "not_an_array",
+      } as unknown as LineWebhookRequest;
       const { status, body } = await invokeWebhook(payload);
 
-      const error = body as ValidationErrorResponse;
+      const error = body as unknown as ValidationErrorResponse;
       expect(status).toBe(400);
       expect(error.error.code).toBe("VALIDATION_ERROR");
       expect(error.error.details?.field_errors).toBeDefined();
