@@ -2,8 +2,16 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyLineSignature, replyMessage } from "@/server/line";
 import { getUserMeta, upsertUserMeta } from "@/server/store/session";
-import { handleChat, handleLocation, forceBookingStep } from "@/server/agent/router";
-import type { LineWebhookEvent, LineMessage, LineMessageText } from "@/server/types/line";
+import {
+  handleChat,
+  handleLocation,
+  forceBookingStep,
+} from "@/server/agent/router";
+import type {
+  LineWebhookEvent,
+  LineMessage,
+  LineMessageText,
+} from "@/server/types/line";
 import type {
   LineWebhookResponse,
   ValidationErrorResponse,
@@ -33,7 +41,7 @@ interface FieldError {
 }
 
 const SIGNATURE_HEADER = "x-line-signature";
-const DEFAULT_FALLBACK_TEXT = "พิมพ์ 'เมนู' เพื่อดูตัวเลือกเพิ่มเติมนะคะ";
+const DEFAULT_FALLBACK_TEXT = "Type 'menu' to see available options.";
 
 function buildValidationError(
   fieldErrors: FieldError[],
@@ -59,7 +67,7 @@ function buildAuthenticationError(message: string, requestId: string) {
   const response: AuthenticationErrorResponse = {
     success: false,
     error: {
-      code: "WEBHOOK_AUTHENTICATION_ERROR",
+      code: "AUTHENTICATION_ERROR",
       message,
     },
     meta: {
@@ -74,7 +82,7 @@ function buildServerError(
   code: ServerErrorResponse["error"]["code"],
   message: string,
   requestId: string,
-  details?: Record<string, unknown>,
+  extraDetails?: Record<string, unknown>,
   status = 503
 ) {
   const response: ServerErrorResponse = {
@@ -82,7 +90,12 @@ function buildServerError(
     error: {
       code,
       message,
-      details,
+      details: {
+        service: "line-webhook",
+        operation: "webhook-processing",
+        retry_possible: true,
+        ...extraDetails,
+      },
     },
     meta: {
       request_id: requestId,
@@ -153,7 +166,10 @@ export async function POST(req: NextRequest) {
       signatureValid = verifyLineSignature(raw, signature);
     } catch (error) {
       console.error("Signature verification failed:", error);
-      return buildAuthenticationError("Signature verification failed", requestId);
+      return buildAuthenticationError(
+        "Signature verification failed",
+        requestId
+      );
     }
 
     if (!signatureValid) {
@@ -184,7 +200,10 @@ export async function POST(req: NextRequest) {
       typeof body.destination !== "string" ||
       body.destination.trim().length === 0
     ) {
-      fieldErrors.push({ field: "destination", message: "destination is required" });
+      fieldErrors.push({
+        field: "destination",
+        message: "destination is required",
+      });
     }
 
     if (!Array.isArray(body.events)) {
@@ -207,7 +226,10 @@ export async function POST(req: NextRequest) {
     for (let idx = 0; idx < events.length; idx++) {
       const ev = events[idx];
       const eventId =
-        ev && typeof ev === "object" && "webhookEventId" in ev && ev.webhookEventId
+        ev &&
+        typeof ev === "object" &&
+        "webhookEventId" in ev &&
+        ev.webhookEventId
           ? String(ev.webhookEventId)
           : `event_${idx}`;
 
@@ -217,7 +239,8 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const userId = ev.source && "userId" in ev.source ? ev.source.userId : undefined;
+        const userId =
+          ev.source && "userId" in ev.source ? ev.source.userId : undefined;
         if (!userId) {
           skipped++;
           continue;
@@ -234,7 +257,10 @@ export async function POST(req: NextRequest) {
           fallbackText = DEFAULT_FALLBACK_TEXT
         ) => {
           try {
-            await replyMessage(replyToken, withQuickReply(messages, fallbackText));
+            await replyMessage(
+              replyToken,
+              withQuickReply(messages, fallbackText)
+            );
           } catch (replyError) {
             // Log but don't fail webhook if reply fails
             console.error("Failed to reply to LINE message:", replyError);
@@ -265,14 +291,17 @@ export async function POST(req: NextRequest) {
             });
             // Send fallback message
             try {
-              await replyMessage(replyToken, [{
-                type: "text",
-                text: "ขออภัยค่ะ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งในอีกสักครู่นะคะ",
-                quickReply: quickReplyMenu(),
-              }]);
+              await replyMessage(replyToken, [
+                {
+                  type: "text",
+                  text: "Sorry, something went wrong. Please type 'menu' to return to the main menu.",
+                  quickReply: quickReplyMenu(),
+                },
+              ]);
             } catch {
               // If even fallback fails, just continue
             }
+            throw chatError;
           }
         };
 
@@ -299,7 +328,9 @@ export async function POST(req: NextRequest) {
             dataStr.split("&").forEach((pair) => {
               const [k, v] = pair.split("=");
               if (k) {
-                parsedPayload[decodeURIComponent(k)] = decodeURIComponent(v || "");
+                parsedPayload[decodeURIComponent(k)] = decodeURIComponent(
+                  v || ""
+                );
               }
             });
             payload = parsedPayload;
@@ -359,10 +390,7 @@ export async function POST(req: NextRequest) {
           }
 
           if (payload.action === "signup_edit") {
-            await sendChat(
-              "แก้ไข",
-              "เริ่มแก้ไขข้อมูลสมัครสมาชิกได้เลยค่ะ"
-            );
+            await sendChat("แก้ไข", "เริ่มแก้ไขข้อมูลสมัครสมาชิกได้เลยค่ะ");
             processed++;
             continue;
           }
