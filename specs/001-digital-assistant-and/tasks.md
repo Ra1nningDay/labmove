@@ -5,12 +5,12 @@
 
 ## 🎯 Current Status (Updated: September 16, 2025)
 
-### ✅ Phase 3.1-3.3: Foundation & Tests (COMPLETED)
+### Phase 3.1-3.3: Foundation & Tests (MOSTLY COMPLETE - integration suites pending)
 
 - **Setup & Dependencies**: All environment variables, Redis, Sentry configured
 - **TypeScript Types**: Core entities, LINE API, and API contracts defined
-- **Contract Tests**: LIFF signup, booking, webhook, geocoding tests written and FAILING as expected
-- **Integration Tests**: All major flows tested (signup, booking, webhook processing)
+- **Contract Tests**: LIFF signup, booking, webhook, geocode tests in place (admin confirm pending)
+- **Integration Tests**: Signup, booking, webhook flows covered; LIFF auth/Sheets/Redis/idempotency suites still pending
 - **Test Infrastructure**: Jest configuration with Next.js App Router support working perfectly
 
 ### ✅ Phase 3.4: API Implementation (IN PROGRESS - 60% COMPLETE)
@@ -18,7 +18,7 @@
 - **LIFF Signup API**: ✅ Fully implemented with validation and error handling
 - **LIFF Booking API**: ✅ Fully implemented with geocoding and structured responses
 - **LINE Webhook API**: 🔄 IN PROGRESS - needs contract compliance update
-- **Geocoding API**: ⏳ PENDING
+- **Geocoding API**: Done (GET/POST handlers live)
 - **Admin APIs**: ⏳ PENDING
 
 ### ⏳ Phase 3.5: Frontend & Integration (PENDING)
@@ -27,7 +27,7 @@
 - Admin dashboard updates
 - End-to-end testing
 
-**Next Priority**: Complete LINE webhook API implementation (T029) and geocoding API (T030)
+**Next Priority**: Complete LINE webhook API implementation (T029), deliver admin confirmation endpoint (T031), and backfill missing integration tests (T013-T016)
 
 ## Execution Flow (main)
 
@@ -72,7 +72,7 @@
 
 ## Phase 3.2: Shared Types & Models (Foundation)
 
-- [x] T005 [P] Define core types in `src/server/types/entities.ts` (Patient, Officer, Booking, Task, Location)
+- [x] T005 [P] Define core types in `src/types/core.ts` (Patient, Officer, Booking, Task, Location)
 - [x] T006 [P] Define LINE message types in `src/server/types/line.ts` (extend existing)
 - [x] T007 [P] Define API request/response types in `src/server/types/api.ts`
 
@@ -85,15 +85,15 @@
 - [x] T008 [P] Contract test POST /api/liff/signup in `tests/contract/liff-signup.test.ts`
 - [x] T009 [P] Contract test POST /api/liff/booking in `tests/contract/liff-booking.test.ts`
 - [x] T010 [P] Contract test POST /api/line/webhook in `tests/contract/line-webhook.test.ts`
-- [x] T011 [P] Contract test GET /api/geocode in `tests/contract/geocoding.test.ts`
+- [x] T011 [P] Contract test GET /api/geocode in `tests/contract/geocode.test.ts`
 - [ ] T012 [P] Contract test POST /api/admin/bookings/:id/confirm in `tests/contract/admin-confirm.test.ts`
 
 ### Integration Tests [P]
 
-- [x] T013 [P] LIFF token validation test in `tests/integration/liff-auth.test.ts`
-- [x] T014 [P] Google Sheets integration test in `tests/integration/sheets.test.ts`
-- [x] T015 [P] Redis caching test in `tests/integration/redis.test.ts`
-- [x] T016 [P] LINE webhook idempotency test in `tests/integration/webhook-idempotency.test.ts`
+- [ ] T013 [P] LIFF token validation test in `tests/integration/liff-auth.test.ts` (planned)
+- [ ] T014 [P] Google Sheets integration test in `tests/integration/sheets.test.ts` (planned)
+- [ ] T015 [P] Redis caching test in `tests/integration/redis.test.ts` (planned)
+- [ ] T016 [P] LINE webhook idempotency test in `tests/integration/webhook-idempotency.test.ts` (planned)
 - [x] T017 [P] Patient registration flow test in `tests/integration/signup-flow.test.ts`
 - [x] T018 [P] Booking creation flow test in `tests/integration/booking-flow.test.ts`
 
@@ -118,7 +118,7 @@
 - [x] T027 POST /api/liff/signup endpoint in `src/app/api/liff/signup/route.ts` (extend existing)
 - [x] T028 POST /api/liff/booking endpoint in `src/app/api/liff/booking/route.ts` (extend existing)
 - [ ] T029 LINE webhook handler in `src/app/api/line/webhook/route.ts` (extend existing)
-- [ ] T030 GET /api/geocode endpoint for address-to-coordinates conversion
+- [x] T030 GET /api/geocode endpoint in `src/app/api/geocode/route.ts` (GET + POST support with caching)
 - [ ] T031 POST /api/admin/bookings/[id]/confirm endpoint for status transitions
 
 ## Phase 3.5: Frontend Components & LIFF Apps
@@ -161,7 +161,7 @@ T023 → T026
 
 ```bash
 # Run simultaneously (different files):
-Task: "Define core types in src/server/types/entities.ts"
+Task: "Define core types in src/types/core.ts"
 Task: "Define LINE message types in src/server/types/line.ts"
 Task: "Define API request/response types in src/server/types/api.ts"
 ```
@@ -173,7 +173,7 @@ Task: "Define API request/response types in src/server/types/api.ts"
 Task: "Contract test POST /api/liff/signup in tests/contract/liff-signup.test.ts"
 Task: "Contract test POST /api/liff/booking in tests/contract/liff-booking.test.ts"
 Task: "Contract test POST /api/line/webhook in tests/contract/line-webhook.test.ts"
-Task: "Contract test GET /api/bookings in tests/contract/bookings-get.test.ts"
+Task: "Contract test GET /api/geocode in tests/contract/geocode.test.ts"
 Task: "Contract test POST /api/admin/bookings/:id/confirm in tests/contract/admin-confirm.test.ts"
 ```
 
@@ -218,7 +218,7 @@ This task list builds upon the existing LabMove codebase:
 
 _GATE: Checked before task execution_
 
-- [x] All API contracts have corresponding tests (T008-T012)
+- [ ] All API contracts have corresponding tests (T008-T012 - admin confirm pending)
 - [x] All entities have type definitions (T005-T007)
 - [x] All tests come before implementation (Phase 3.3 → 3.4)
 - [x] Parallel tasks are independent (different files)

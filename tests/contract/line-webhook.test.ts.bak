@@ -113,7 +113,7 @@ async function invokeWebhook(
 ): Promise<{ status: number; body: LineWebhookResponse }>; // overload for normal payload
 async function invokeWebhook(
   payload: LineWebhookRequest | string,
-  options: InvokeOptions = {}
+  options: InvokeOptions
 ): Promise<{ status: number; body: any }> {
   const rawBody =
     typeof payload === "string" ? payload : JSON.stringify(payload ?? {});
@@ -150,12 +150,7 @@ describe("Contract: POST /api/line/webhook", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    [
-      "test-user",
-      "dup-user",
-      "redeliver",
-      "service_down_test_user",
-    ].forEach((id) => clearUserMeta(id));
+    clearUserMeta("test-user");
   });
 
   describe("Successful Webhook Processing", () => {

@@ -222,6 +222,8 @@ export function reportHealthcareError(
     operation: string;
     userId?: string;
     bookingId?: string;
+    eventId?: string;
+    requestId?: string;
     severity?: "low" | "medium" | "high" | "critical";
   }
 ) {
@@ -237,6 +239,8 @@ export function reportHealthcareError(
       booking_hash: context.bookingId
         ? hashBookingId(context.bookingId)
         : undefined,
+      event_id: context.eventId ? hashEventId(context.eventId) : undefined,
+      request_id: context.requestId,
       timestamp: new Date().toISOString(),
     });
 
@@ -286,6 +290,19 @@ function hashBookingId(bookingId: string): string {
     hash = hash & hash;
   }
   return `booking_${Math.abs(hash)}`;
+}
+
+/**
+ * Hash event ID for privacy
+ */
+function hashEventId(eventId: string): string {
+  let hash = 0;
+  for (let i = 0; i < eventId.length; i++) {
+    const char = eventId.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash;
+  }
+  return `event_${Math.abs(hash)}`;
 }
 
 // Initialize Sentry when this module is imported
