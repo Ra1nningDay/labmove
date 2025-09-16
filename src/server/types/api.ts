@@ -20,13 +20,13 @@ import type {
 // COMMON API TYPES
 // =============================================================================
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: {
     code: string;
     message: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
     field?: string; // for validation errors
   };
   meta?: {
@@ -42,7 +42,7 @@ export interface ApiResponse<T = any> {
 export interface ApiError {
   code: string;
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   field?: string;
   status: number;
 }
@@ -179,7 +179,7 @@ export interface LineWebhookRequest {
     deliveryContext: {
       isRedelivery: boolean;
     };
-    [key: string]: any; // for specific event data
+    [key: string]: unknown; // for specific event data
   }>;
 }
 
@@ -433,7 +433,7 @@ export interface ValidationErrorResponse extends ApiResponse {
       field_errors: Array<{
         field: string;
         message: string;
-        value?: any;
+        value?: unknown;
       }>;
     };
   };
@@ -581,7 +581,7 @@ export interface NotificationRequest {
     address: string; // line_user_id, phone, email, etc.
   }>;
   template: string;
-  variables: Record<string, any>;
+  variables: Record<string, unknown>;
   priority: "low" | "normal" | "high" | "urgent";
   schedule_at?: string; // ISO string for delayed sending
 }
@@ -608,7 +608,7 @@ export interface AnalyticsQuery {
   end_date: string; // ISO string
   granularity: "hour" | "day" | "week" | "month";
   metrics: string[];
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
 }
 
 export interface AnalyticsResponse {

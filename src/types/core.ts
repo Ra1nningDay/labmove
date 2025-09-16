@@ -410,13 +410,13 @@ export interface UserSession {
   step?: string;
 
   /** Temporary form data */
-  form_data?: Record<string, any>;
+  form_data?: Record<string, unknown>;
 
   /** Selected patient (for multi-patient accounts) */
   selected_patient_id?: string;
 
   /** Session metadata */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   /** Session timestamps */
   created_at: Date;
@@ -427,13 +427,13 @@ export interface UserSession {
 // API REQUEST/RESPONSE TYPES
 // =============================================================================
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: {
     code: string;
     message: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
   };
   meta?: {
     page?: number;
