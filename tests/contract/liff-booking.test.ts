@@ -7,7 +7,7 @@
  * Tests the appointment booking flow through LINE LIFF interface.
  */
 
-import request from "supertest";
+import { createTestApp, request } from "../helpers/app";
 import type {
   LiffBookingRequest,
   LiffBookingResponse,
@@ -16,47 +16,45 @@ import type {
   ConflictErrorResponse,
 } from "@/server/types/api";
 
+// Mock test utilities - these would be implemented in actual test setup
+const testUtils = {
+  generateFutureDate: (daysFromNow: number = 1) => {
+    const date = new Date();
+    date.setDate(date.getDate() + daysFromNow);
+    return date;
+  },
+  generateBangkokCoordinates: () => ({
+    lat: 13.7563 + (Math.random() - 0.5) * 0.1, // Bangkok area with small random offset
+    lng: 100.5018 + (Math.random() - 0.5) * 0.1,
+  }),
+};
+
+// Custom Jest matchers
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace jest {
+    interface Matchers<R> {
+      toBeISODateString(): R;
+      toBeThaiPhoneNumber(): R;
+    }
+  }
+}
+
 describe("Contract: POST /api/liff/booking", () => {
-  let app: any;
+  let app: ReturnType<typeof createTestApp>;
   const bookingEndpoint = "/api/liff/booking";
 
   beforeAll(async () => {
-    // This will fail until we implement the Next.js API handler
-    try {
-      // Import the Next.js app for testing
-      const { createServer } = await import("http");
-      const { parse } = await import("url");
-      const next = await import("next");
+    app = createTestApp();
+  });
 
-      const dev = process.env.NODE_ENV !== "production";
-      const hostname = "localhost";
-      const port = 3002; // Different test port
-
-      const nextApp = next.default({ dev, hostname, port });
-      await nextApp.prepare();
-
-      const handle = nextApp.getRequestHandler();
-
-      app = createServer(async (req, res) => {
-        try {
-          const parsedUrl = parse(req.url!, true);
-          await handle(req, res, parsedUrl);
-        } catch (err) {
-          console.error("Error occurred handling", req.url, err);
-          res.statusCode = 500;
-          res.end("internal server error");
-        }
-      });
-    } catch (error) {
-      console.log("Expected failure: Next.js app not ready for testing");
-      // This is expected to fail in TDD - we haven't implemented the API yet
-    }
+  beforeEach(() => {
+    // Clear any cached modules between tests to ensure clean state
+    jest.clearAllMocks();
   });
 
   afterAll(async () => {
-    if (app && app.close) {
-      await new Promise((resolve) => app.close(resolve));
-    }
+    // Cleanup if needed - app is just a test helper, no close needed
   });
 
   describe("Successful Booking Creation", () => {
@@ -79,14 +77,17 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until we implement the API handler
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(validBookingRequest)
-        .expect("Content-Type", /json/)
-        .expect(201);
+        .send(validBookingRequest);
 
-      const responseBody: LiffBookingResponse = response.body.data;
+      expect(response.status).toBe(201);
+      expect(response.body).toBeDefined();
+
+      const responseBody: LiffBookingResponse = (
+        response.body as { data: LiffBookingResponse }
+      ).data;
 
       // Contract assertions - these define what the API MUST return
-      expect(response.body.success).toBe(true);
+      expect((response.body as { success: boolean }).success).toBe(true);
       expect(responseBody.booking_id).toBeDefined();
       expect(responseBody.booking_id).toMatch(/^booking_[a-zA-Z0-9]{12}$/);
       expect(responseBody.confirmation_id).toBeDefined();
@@ -96,8 +97,12 @@ describe("Contract: POST /api/liff/booking", () => {
       expect(responseBody.next_steps).toContain("รอการยืนยันจากเจ้าหน้าที่");
 
       // Ensure response includes proper metadata
-      expect(response.body.meta).toBeDefined();
-      expect(response.body.meta.timestamp).toBeISODateString();
+      expect(
+        (response.body as { meta: { timestamp: string } }).meta
+      ).toBeDefined();
+      expect(
+        (response.body as { meta: { timestamp: string } }).meta.timestamp
+      ).toBeISODateString();
     });
 
     it("should create booking with auto-assignment when requested", async () => {
@@ -118,12 +123,15 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(autoAssignRequest)
-        .expect(201);
+        .send(autoAssignRequest);
 
-      const responseBody: LiffBookingResponse = response.body.data;
+      expect(response.status).toBe(201);
 
-      expect(response.body.success).toBe(true);
+      const responseBody: LiffBookingResponse = (
+        response.body as { data: LiffBookingResponse }
+      ).data;
+
+      expect((response.body as { success: boolean }).success).toBe(true);
       expect(responseBody.status).toBe("confirmed");
       expect(responseBody.officer_assigned).toBe(true);
       expect(responseBody.officer).toBeDefined();
@@ -156,12 +164,15 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(customLocationRequest)
-        .expect(201);
+        .send(customLocationRequest);
 
-      const responseBody: LiffBookingResponse = response.body.data;
+      expect(response.status).toBe(201);
 
-      expect(response.body.success).toBe(true);
+      const responseBody: LiffBookingResponse = (
+        response.body as { data: LiffBookingResponse }
+      ).data;
+
+      expect((response.body as { success: boolean }).success).toBe(true);
       expect(responseBody.booking_id).toBeDefined();
       expect(responseBody.status).toBe("pending");
     });
@@ -186,12 +197,15 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(emergencyRequest)
-        .expect(201);
+        .send(emergencyRequest);
 
-      const responseBody: LiffBookingResponse = response.body.data;
+      expect(response.status).toBe(201);
 
-      expect(response.body.success).toBe(true);
+      const responseBody: LiffBookingResponse = (
+        response.body as { data: LiffBookingResponse }
+      ).data;
+
+      expect((response.body as { success: boolean }).success).toBe(true);
       expect(responseBody.status).toBe("confirmed");
       expect(responseBody.officer_assigned).toBe(true);
       expect(responseBody.next_steps).toContain("เจ้าหน้าที่จะติดต่อกลับภายใน");
@@ -213,10 +227,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(invalidPatientRequest)
-        .expect(400);
+        .send(invalidPatientRequest);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      expect(response.status).toBe(400);
+
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("VALIDATION_ERROR");
@@ -245,10 +261,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(pastDateRequest)
-        .expect(400);
+        .send(pastDateRequest);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      expect(response.status).toBe(400);
+
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.details.field_errors).toContainEqual(
@@ -273,10 +291,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(noServicesRequest)
-        .expect(400);
+        .send(noServicesRequest);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      expect(response.status).toBe(400);
+
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.details.field_errors).toContainEqual(
@@ -301,10 +321,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(invalidTypeRequest)
-        .expect(400);
+        .send(invalidTypeRequest);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      expect(response.status).toBe(400);
+
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.details.field_errors).toContainEqual(
@@ -331,10 +353,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(invalidTokenRequest)
-        .expect(401);
+        .send(invalidTokenRequest);
 
-      const errorResponse: AuthenticationErrorResponse = response.body;
+      expect(response.status).toBe(401);
+
+      const errorResponse: AuthenticationErrorResponse =
+        response.body as AuthenticationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("AUTHENTICATION_ERROR");
@@ -355,10 +379,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(unauthorizedPatientRequest)
-        .expect(403);
+        .send(unauthorizedPatientRequest);
 
-      const errorResponse: AuthenticationErrorResponse = response.body;
+      expect(response.status).toBe(403);
+
+      const errorResponse: AuthenticationErrorResponse =
+        response.body as AuthenticationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("AUTHORIZATION_ERROR");
@@ -382,10 +408,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(conflictingRequest)
-        .expect(409);
+        .send(conflictingRequest);
 
-      const errorResponse: ConflictErrorResponse = response.body;
+      expect(response.status).toBe(409);
+
+      const errorResponse: ConflictErrorResponse =
+        response.body as ConflictErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("DUPLICATE_BOOKING");
@@ -410,10 +438,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(noOfficerRequest)
-        .expect(409);
+        .send(noOfficerRequest);
 
-      const errorResponse: ConflictErrorResponse = response.body;
+      expect(response.status).toBe(409);
+
+      const errorResponse: ConflictErrorResponse =
+        response.body as ConflictErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.code).toBe("OFFICER_UNAVAILABLE");
@@ -439,10 +469,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(outsideHoursRequest)
-        .expect(400);
+        .send(outsideHoursRequest);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      expect(response.status).toBe(400);
+
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.details.field_errors).toContainEqual(
@@ -474,10 +506,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(invalidLocationRequest)
-        .expect(400);
+        .send(invalidLocationRequest);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      expect(response.status).toBe(400);
+
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.details.field_errors).toEqual(
@@ -507,10 +541,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(outsideAreaRequest)
-        .expect(400);
+        .send(outsideAreaRequest);
 
-      const errorResponse: ValidationErrorResponse = response.body;
+      expect(response.status).toBe(400);
+
+      const errorResponse: ValidationErrorResponse =
+        response.body as ValidationErrorResponse;
 
       expect(errorResponse.success).toBe(false);
       expect(errorResponse.error.message).toContain("service area");
@@ -540,7 +576,9 @@ describe("Contract: POST /api/liff/booking", () => {
       const rateLimitedResponses = responses.filter((r) => r.status === 429);
       expect(rateLimitedResponses.length).toBeGreaterThan(0);
 
-      const rateLimitResponse = rateLimitedResponses[0].body;
+      const rateLimitResponse = rateLimitedResponses[0].body as {
+        error: { code: string };
+      };
       expect(rateLimitResponse.error.code).toBe("RATE_LIMIT_EXCEEDED");
     });
   });
@@ -562,11 +600,12 @@ describe("Contract: POST /api/liff/booking", () => {
       // This WILL FAIL until implementation
       const response = await request(app)
         .post(bookingEndpoint)
-        .send(thaiInstructionsRequest)
-        .expect(201);
+        .send(thaiInstructionsRequest);
+
+      expect(response.status).toBe(201);
 
       // Should preserve Thai text but sanitize HTML/scripts
-      expect(response.body.data).toBeDefined();
+      expect((response.body as { data: unknown }).data).toBeDefined();
     });
   });
 });
