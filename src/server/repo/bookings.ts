@@ -1,4 +1,4 @@
-import fs from "fs";
+﻿import fs from "fs";
 import path from "path";
 import {
   sheetsConfigured,
@@ -15,7 +15,7 @@ import {
 export type BookingRow = {
   userId: string;
   bookingDate?: string; // YYYY-MM-DD
-  datePreference: string; // e.g., "เร็วที่สุด" | "วันนี้" | "พรุ่งนี้" | ISO date
+  datePreference: string; // e.g., "เน€เธฃเนเธงเธ—เธตเนเธชเธธเธ”" | "เธงเธฑเธเธเธตเน" | "เธเธฃเธธเนเธเธเธตเน" | ISO date
   address: string;
   lat?: number;
   lng?: number;
@@ -183,7 +183,6 @@ export async function getLatestBookingByUserId(
     status: header.indexOf('"status"'),
   } as const;
 
-  // naive CSV parsing (quoted fields)
   function parseCsvLine(line: string): string[] {
     const out: string[] = [];
     let cur = "";
@@ -195,27 +194,37 @@ export async function getLatestBookingByUserId(
           if (i + 1 < line.length && line[i + 1] === '"') {
             cur += '"';
             i++;
-          } else inQuotes = false;
-        } else cur += ch;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cur += ch;
+        }
       } else {
         if (ch === ',') {
           out.push(cur);
           cur = "";
-        } else if (ch === '"') inQuotes = true;
-        else cur += ch;
+        } else if (ch === '"') {
+          inQuotes = true;
+        } else {
+          cur += ch;
+        }
       }
     }
     out.push(cur);
     return out;
   }
 
+  const unq = (s: string) => s.replace(/^"|"$/g, '').replace(/""/g, '"');
   let last: string[] | null = null;
   for (let i = 1; i < lines.length; i++) {
     const cols = parseCsvLine(lines[i]);
-    if (cols[idx.user_id] === `"${userId}"`) last = cols;
+    if (unq(cols[idx.user_id] || "") === userId) {
+      last = cols;
+    }
   }
   if (!last) return null;
-  const unq = (s: string) => s.replace(/^"|"$/g, '').replace(/""/g, '"');
+
   return {
     userId,
     bookingDate: unq(last[idx.booking_date] || "") || undefined,
@@ -285,27 +294,37 @@ export async function getBookingSessionByUserId(
           if (i + 1 < line.length && line[i + 1] === '"') {
             cur += '"';
             i++;
-          } else inQuotes = false;
-        } else cur += ch;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cur += ch;
+        }
       } else {
         if (ch === ',') {
           out.push(cur);
           cur = "";
-        } else if (ch === '"') inQuotes = true;
-        else cur += ch;
+        } else if (ch === '"') {
+          inQuotes = true;
+        } else {
+          cur += ch;
+        }
       }
     }
     out.push(cur);
     return out;
   }
 
+  const unq = (s: string) => s.replace(/^"|"$/g, '').replace(/""/g, '"');
   let last: string[] | null = null;
   for (let i = 1; i < lines.length; i++) {
     const cols = parseCsvLine(lines[i]);
-    if (cols[idx.user_id] === `"${userId}"`) last = cols;
+    if (unq(cols[idx.user_id] || "") === userId) {
+      last = cols;
+    }
   }
   if (!last) return null;
-  const unq = (s: string) => s.replace(/^"|"$/g, '').replace(/""/g, '"');
+
   return {
     userId,
     step: unq(last[idx.step] || ""),
@@ -319,3 +338,5 @@ export async function getBookingSessionByUserId(
     status: unq(last[idx.status] || "") || undefined,
   };
 }
+
+
