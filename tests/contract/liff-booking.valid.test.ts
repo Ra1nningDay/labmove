@@ -45,11 +45,12 @@ describe("Contract: LIFF booking (valid)", () => {
       },
       location: { address: "Bangkok", lat: 13.75, lng: 100.5 },
     };
-    const req = new NextRequest("http://localhost/api/liff/booking", {
+    const req = {
+      json: async () => body,
+      headers: new Headers(),
       method: "POST",
-      body: JSON.stringify(body),
-    } as any);
-    const res = await POST(req as any);
+    } as unknown as NextRequest;
+    const res = await POST(req);
     expect(res.status).toBe(201);
   });
 });

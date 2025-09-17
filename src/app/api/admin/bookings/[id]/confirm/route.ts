@@ -16,10 +16,12 @@ function jsonResponse<T>(status: number, body: ApiResponse<T>) {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } | Promise<{ id: string }> }
 ) {
   const requestId = crypto.randomUUID();
   const timestamp = new Date().toISOString();
+  // Next.js may provide params as a Promise — resolve safely
+  const params = await Promise.resolve(context.params);
   const bookingId = params?.id?.trim();
   if (!bookingId) {
     return jsonResponse(400, {

@@ -45,8 +45,7 @@ export const LineEventSchema = z
         source: Source,
       })
       .strict(),
-  ])
-  .strict();
+  ]);
 
 export const LineWebhookSchema = z
   .object({

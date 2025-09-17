@@ -33,11 +33,12 @@ describe("Contract: LIFF signup (valid)", () => {
       },
       consent: { terms_accepted: true, privacy_accepted: true },
     };
-    const req = new NextRequest("http://localhost/api/liff/signup", {
+    const req = {
+      json: async () => body,
+      headers: new Headers(),
       method: "POST",
-      body: JSON.stringify(body),
-    } as any);
-    const res = await POST(req as any);
+    } as unknown as NextRequest;
+    const res = await POST(req);
     expect([200, 201]).toContain(res.status);
   });
 });

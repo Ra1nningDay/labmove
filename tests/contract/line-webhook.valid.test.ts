@@ -54,12 +54,12 @@ describe("Contract: LINE webhook (valid)", () => {
         },
       ],
     };
-    const req = new NextRequest("http://localhost/api/line/webhook", {
+    const req = {
+      text: async () => JSON.stringify(body),
+      headers: new Map([["x-line-signature", "sig"]]) as unknown as Headers,
       method: "POST",
-      headers: { "x-line-signature": "sig" } as any,
-      body: JSON.stringify(body),
-    } as any);
-    const res = await POST(req as any);
+    } as unknown as NextRequest;
+    const res = await POST(req);
     expect(res.status).toBe(200);
   });
 });
