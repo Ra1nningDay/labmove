@@ -117,15 +117,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Zod validation (strict payload surface)
+    const locationId =
+      body?.location &&
+      typeof (body.location as unknown as { id?: unknown }).id === "string"
+        ? (body.location as unknown as { id: string }).id
+        : "";
     const parsed = BookingPayloadSchema.safeParse({
       idToken: body?.accessToken,
       datetime: body?.booking?.scheduled_at,
-      locationId: body?.location?.id ?? "",
+      locationId,
       serviceCode: Array.isArray(body?.booking?.services)
         ? String(body.booking.services[0])
         : "",
       notes: body?.booking?.instructions,
-      memberId: body?.memberId,
+      memberId: body?.patient_id,
     });
     if (!parsed.success) {
       const errorResponse: ValidationErrorResponse = {
