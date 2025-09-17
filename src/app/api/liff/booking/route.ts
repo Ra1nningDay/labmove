@@ -14,6 +14,8 @@ import type {
   ApiResponse,
 } from "@/server/types/api";
 import type { BookingProgress } from "@/server/agent/bookingFlow";
+import { BookingPayloadSchema } from "@/server/validation";
+import { formatZodError } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -104,6 +106,38 @@ export async function POST(req: NextRequest) {
             field_errors: [
               { field: "body", message: "Request body must be valid JSON" },
             ],
+          },
+        },
+        meta: {
+          request_id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+        },
+      };
+      return NextResponse.json(errorResponse, { status: 400 });
+    }
+
+    // Zod validation (strict payload surface)
+    const parsed = BookingPayloadSchema.safeParse({
+      idToken: body?.accessToken,
+      datetime: body?.booking?.scheduled_at,
+      locationId: body?.location?.id ?? "",
+      serviceCode: Array.isArray(body?.booking?.services)
+        ? String(body.booking.services[0])
+        : "",
+      notes: body?.booking?.instructions,
+      memberId: body?.memberId,
+    });
+    if (!parsed.success) {
+      const errorResponse: ValidationErrorResponse = {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Validation failed for one or more fields",
+          details: {
+            field_errors: formatZodError(parsed.error).map((i) => ({
+              field: i.path,
+              message: i.message,
+            })),
           },
         },
         meta: {
@@ -407,4 +441,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

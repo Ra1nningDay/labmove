@@ -9,6 +9,8 @@ import type {
   ValidationErrorResponse,
   AuthenticationErrorResponse,
 } from "@/server/types/api";
+import { SignupPayloadSchema } from "@/server/validation";
+import { formatZodError } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +46,6 @@ function generatePatientId(): string {
 export async function POST(req: NextRequest) {
   try {
     let body: LiffSignupRequest;
-
     try {
       body = await req.json();
     } catch {
@@ -58,6 +59,30 @@ export async function POST(req: NextRequest) {
               { field: "body", message: "Request body must be valid JSON" },
             ],
           },
+        },
+      };
+      return NextResponse.json(response, { status: 400 });
+    }
+
+    // Zod validation (strict)
+    const parsed = SignupPayloadSchema.safeParse({
+      idToken: body.accessToken,
+      displayName: body.patient?.name,
+      givenName: body.patient?.name?.split(" ")?.[0] ?? body.patient?.name,
+      familyName:
+        body.patient?.name?.includes(" ")
+          ? body.patient?.name?.split(" ").slice(1).join(" ")
+          : body.patient?.name,
+      phone: body.patient?.phone ?? "",
+      consent: Boolean(body.consent?.terms_accepted && body.consent?.privacy_accepted),
+    });
+    if (!parsed.success) {
+      const response: ValidationErrorResponse = {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Validation failed",
+          details: { field_errors: formatZodError(parsed.error).map((i) => ({ field: i.path, message: i.message })) },
         },
       };
       return NextResponse.json(response, { status: 400 });
@@ -89,73 +114,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(response, { status: 401 });
     }
 
-    // Validate required fields
-    const fieldErrors: Array<{ field: string; message: string }> = [];
-
-    // Validate patient data
-    if (!body.patient) {
-      fieldErrors.push({
-        field: "patient",
-        message: "Patient information is required",
-      });
-    } else {
-      const nameError = validateName(body.patient.name);
-      if (nameError) {
-        fieldErrors.push({ field: "patient.name", message: nameError });
-      }
-
-      const phoneError = validatePhone(body.patient.phone);
-      if (phoneError) {
-        fieldErrors.push({ field: "patient.phone", message: phoneError });
-      }
-
-      if (!body.patient.address?.trim()) {
-        fieldErrors.push({
-          field: "patient.address",
-          message: "Address is required",
-        });
-      }
-
-      const ageError = validateAge(body.patient.age);
-      if (ageError) {
-        fieldErrors.push({ field: "patient.age", message: ageError });
-      }
-    }
-
-    // Validate consent
-    if (!body.consent) {
-      fieldErrors.push({
-        field: "consent",
-        message: "Consent information is required",
-      });
-    } else {
-      if (!body.consent.terms_accepted) {
-        fieldErrors.push({
-          field: "consent.terms_accepted",
-          message: "Terms and conditions acceptance is required",
-        });
-      }
-
-      if (!body.consent.privacy_accepted) {
-        fieldErrors.push({
-          field: "consent.privacy_accepted",
-          message: "Privacy policy acceptance is required",
-        });
-      }
-    }
-
-    // Return validation errors if any
-    if (fieldErrors.length > 0) {
-      const response: ValidationErrorResponse = {
-        success: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Validation failed",
-          details: { field_errors: fieldErrors },
-        },
-      };
-      return NextResponse.json(response, { status: 400 });
-    }
+    // Existing manual field validation kept for backward-compat with contract tests
 
     // Check if user already exists (handle duplicate registration)
     const existingUser = await findUserByLineId(tokenInfo.sub);

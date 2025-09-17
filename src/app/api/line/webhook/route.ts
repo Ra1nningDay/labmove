@@ -31,6 +31,7 @@ import {
 } from "@/server/repo/bookings";
 import { findUsersByLineId } from "@/server/repo/users";
 import { reportHealthcareError } from "@/lib/sentry";
+import { LineWebhookSchema, formatZodError } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -191,32 +192,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const fieldErrors: FieldError[] = [];
-    if (!body || typeof body !== "object") {
-      fieldErrors.push({ field: "body", message: "Payload must be an object" });
-    }
-
-    if (
-      typeof body.destination !== "string" ||
-      body.destination.trim().length === 0
-    ) {
-      fieldErrors.push({
-        field: "destination",
-        message: "destination is required",
-      });
-    }
-
-    if (!Array.isArray(body.events)) {
-      fieldErrors.push({
-        field: "events",
-        message: "events must be an array",
-        value: body.events,
-      });
-    }
-
-    if (fieldErrors.length > 0) {
+    // Zod validate webhook payload (strict)
+    const parsed = LineWebhookSchema.safeParse(body);
+    if (!parsed.success) {
+      const fieldErrors = formatZodError(parsed.error).map((i) => ({
+        field: i.path,
+        message: i.message,
+      }));
       return buildValidationError(fieldErrors, requestId);
     }
+    body = parsed.data as unknown as typeof body;
 
     const events = body.events || [];
     let processed = 0;

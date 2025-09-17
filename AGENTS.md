@@ -59,3 +59,10 @@ Style & Practices
 - Favor small, focused changes and reuse helpers instead of branching ad-hoc logic.
 - Extend TypeScript types first, write or update relevant tests, then adjust implementations.
 - Update docs in `docs/*.md` whenever you change intents, Flex layouts, LIFF endpoints, or admin flows.
+
+Validation (Zod)
+- All untrusted inputs MUST be validated with Zod before use.
+- Schemas live under `src/server/validation/*` and are re-exported via `src/server/validation/index.ts`.
+- LIFF endpoints and LINE webhook use strict() schemas; geocode uses passthrough() to tolerate vendor extras.
+- On validation failure, return 400 with compact `details.field_errors` and avoid PII in messages.
+- When schemas change, update or add contract tests in `tests/contract/` and keep `docs/VALIDATION.md` current.
