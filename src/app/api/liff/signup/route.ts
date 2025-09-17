@@ -15,27 +15,27 @@ import { formatZodError } from "@/server/validation";
 export const dynamic = "force-dynamic";
 
 // Validation utilities
-function validateAge(age?: number): string | null {
-  if (age !== undefined && (age < 18 || age > 120)) {
-    return "Patient must be at least 18 years old";
-  }
-  return null;
-}
+// function validateAge(age?: number): string | null {
+//   if (age !== undefined && (age < 18 || age > 120)) {
+//     return "Patient must be at least 18 years old";
+//   }
+//   return null;
+// }
 
-function validatePhone(phone: string): string | null {
-  const cleanPhone = phone.replace(/[^0-9]/g, "");
-  if (cleanPhone.length < 9 || cleanPhone.length > 12) {
-    return "Invalid phone number format";
-  }
-  return null;
-}
+// function validatePhone(phone: string): string | null {
+//   const cleanPhone = phone.replace(/[^0-9]/g, "");
+//   if (cleanPhone.length < 9 || cleanPhone.length > 12) {
+//     return "Invalid phone number format";
+//   }
+//   return null;
+// }
 
-function validateName(name: string): string | null {
-  if (name.trim().length < 2) {
-    return "Name must be at least 2 characters";
-  }
-  return null;
-}
+// function validateName(name: string): string | null {
+//   if (name.trim().length < 2) {
+//     return "Name must be at least 2 characters";
+//   }
+//   return null;
+// }
 
 function generatePatientId(): string {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
