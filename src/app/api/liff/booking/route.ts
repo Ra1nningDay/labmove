@@ -186,9 +186,18 @@ export async function POST(req: NextRequest) {
     // Validate patient_id format if provided (optional in LIFF payloads)
     if (body.patient_id !== undefined && body.patient_id !== null) {
       if (typeof body.patient_id !== "string") {
-        fieldErrors.push({ field: "patient_id", message: "invalid patient ID" });
-      } else if (!body.patient_id.startsWith("patient_") || body.patient_id.length < 12) {
-        fieldErrors.push({ field: "patient_id", message: "invalid patient ID" });
+        fieldErrors.push({
+          field: "patient_id",
+          message: "invalid patient ID",
+        });
+      } else if (
+        !body.patient_id.startsWith("patient_") ||
+        body.patient_id.length < 12
+      ) {
+        fieldErrors.push({
+          field: "patient_id",
+          message: "invalid patient ID",
+        });
       }
     }
 
@@ -260,7 +269,10 @@ export async function POST(req: NextRequest) {
       const hasLng = typeof body.location.lng === "number";
       if (!hasLat || !hasLng) {
         // When coordinates are not both provided, require a usable address string
-        if (!body.location.address || typeof body.location.address !== "string") {
+        if (
+          !body.location.address ||
+          typeof body.location.address !== "string"
+        ) {
           fieldErrors.push({
             field: "location.address",
             message: "Location address is required when location is specified",
@@ -386,8 +398,11 @@ export async function POST(req: NextRequest) {
       globalThis.__booking_ts = globalThis.__booking_ts || {};
       const tokenKey = String(body.accessToken || "anonymous");
       const nowTs = Date.now();
-      globalThis.__booking_ts[tokenKey] = globalThis.__booking_ts[tokenKey] || [];
-      globalThis.__booking_ts[tokenKey] = globalThis.__booking_ts[tokenKey].filter((t: number) => nowTs - t < 1000);
+      globalThis.__booking_ts[tokenKey] =
+        globalThis.__booking_ts[tokenKey] || [];
+      globalThis.__booking_ts[tokenKey] = globalThis.__booking_ts[
+        tokenKey
+      ].filter((t: number) => nowTs - t < 1000);
       if (globalThis.__booking_ts[tokenKey].length >= 2) {
         return NextResponse.json(
           {
@@ -401,7 +416,7 @@ export async function POST(req: NextRequest) {
           { status: 429 }
         );
       }
-  globalThis.__booking_ts[tokenKey].push(nowTs);
+      globalThis.__booking_ts[tokenKey].push(nowTs);
 
       // Conflict simulation
       if (body.patient_id === "patient_has_existing_booking") {
@@ -603,9 +618,9 @@ export async function POST(req: NextRequest) {
           details: { retry_allowed: true },
         },
         meta: {
-        request_id: randomUUID(),
-        timestamp: new Date().toISOString(),
-      },
+          request_id: randomUUID(),
+          timestamp: new Date().toISOString(),
+        },
       },
       { status: 500 }
     );
