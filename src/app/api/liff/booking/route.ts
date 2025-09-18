@@ -139,46 +139,8 @@ export async function POST(req: NextRequest) {
     // manual validation below enforces required fields and business
     // rules and returns structured errors when appropriate.
 
-    // Validate access token
-    if (!body.accessToken || typeof body.accessToken !== "string") {
-      const errorResponse: AuthenticationErrorResponse = {
-        success: false,
-        error: {
-          code: "AUTHENTICATION_ERROR",
-          message: "Missing or invalid LIFF access token",
-          details: {
-            token_valid: false,
-          },
-        },
-        meta: {
-          request_id: randomUUID(),
-          timestamp: new Date().toISOString(),
-        },
-      };
-      return NextResponse.json(errorResponse, { status: 401 });
-    }
-
-    // Verify LIFF token
-    let userInfo: { sub: string; name?: string };
-    try {
-      userInfo = await verifyLiffIdToken(body.accessToken);
-    } catch {
-      const errorResponse: AuthenticationErrorResponse = {
-        success: false,
-        error: {
-          code: "AUTHENTICATION_ERROR",
-          message: "Invalid LIFF access token",
-          details: {
-            token_valid: false,
-          },
-        },
-        meta: {
-          request_id: randomUUID(),
-          timestamp: new Date().toISOString(),
-        },
-      };
-      return NextResponse.json(errorResponse, { status: 401 });
-    }
+    // Authentication will be performed after payload validation so that
+    // malformed payloads return 400 as expected by contract tests.
 
     // Validate required fields
     const fieldErrors: Array<{ field: string; message: string }> = [];
@@ -347,7 +309,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (fieldErrors.length > 0) {
+  if (fieldErrors.length > 0) {
       // If any field error mentions 'outside service area', surface that in
       // the top-level message to satisfy contract tests expecting this phrase.
       const hasServiceArea = fieldErrors.some((f) =>
@@ -368,6 +330,47 @@ export async function POST(req: NextRequest) {
         },
       };
       return NextResponse.json(errorResponse, { status: 400 });
+    }
+
+    // Now that payload validation passed, validate access token and verify it.
+    if (!body.accessToken || typeof body.accessToken !== "string") {
+      const errorResponse: AuthenticationErrorResponse = {
+        success: false,
+        error: {
+          code: "AUTHENTICATION_ERROR",
+          message: "Missing or invalid LIFF access token",
+          details: {
+            token_valid: false,
+          },
+        },
+        meta: {
+          request_id: randomUUID(),
+          timestamp: new Date().toISOString(),
+        },
+      };
+      return NextResponse.json(errorResponse, { status: 401 });
+    }
+
+    // Verify LIFF token
+    let userInfo: { sub: string; name?: string };
+    try {
+      userInfo = await verifyLiffIdToken(body.accessToken);
+    } catch {
+      const errorResponse: AuthenticationErrorResponse = {
+        success: false,
+        error: {
+          code: "AUTHENTICATION_ERROR",
+          message: "Invalid LIFF access token",
+          details: {
+            token_valid: false,
+          },
+        },
+        meta: {
+          request_id: randomUUID(),
+          timestamp: new Date().toISOString(),
+        },
+      };
+      return NextResponse.json(errorResponse, { status: 401 });
     }
 
     // Test-mode authorization simulation: allow checking ownership rules

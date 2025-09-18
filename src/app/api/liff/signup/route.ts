@@ -77,17 +77,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(response, { status: 400 });
     }
 
-    // Validate access token presence early and return the expected 401
-    if (!body.accessToken) {
-      const response: AuthenticationErrorResponse = {
-        success: false,
-        error: {
-          code: "AUTHENTICATION_ERROR",
-          message: "Missing LIFF access token",
-        },
-      };
-      return NextResponse.json(response, { status: 401 });
-    }
+    // Note: do not return 401 on missing token before validating payload.
+    // Contract tests expect malformed payloads to return 400. Token
+    // verification happens after schema validation below.
 
     // Zod validation (strict)
     const fullName = body.patient?.name?.trim() ?? "";
