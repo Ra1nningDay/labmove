@@ -309,7 +309,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-  if (fieldErrors.length > 0) {
+    if (fieldErrors.length > 0) {
       // If any field error mentions 'outside service area', surface that in
       // the top-level message to satisfy contract tests expecting this phrase.
       const hasServiceArea = fieldErrors.some((f) =>

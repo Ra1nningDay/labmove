@@ -84,8 +84,12 @@ export async function POST(req: NextRequest) {
     // Zod validation (strict)
     const fullName = body.patient?.name?.trim() ?? "";
     const nameParts = fullName.split(/\s+/).filter(Boolean);
-    const parsed = SignupPayloadSchema.safeParse({
-      idToken: body.accessToken,
+
+    // Build the payload shape used for validation. We'll first validate
+    // against the schema without the `idToken` so we can distinguish
+    // between malformed payloads (400) and missing token (401) when the
+    // rest of the payload is valid (contract expects 401 in that case).
+    const validationPayload = {
       displayName: fullName || undefined,
       givenName: nameParts[0] ?? fullName ?? "",
       familyName:
@@ -96,9 +100,59 @@ export async function POST(req: NextRequest) {
         terms_accepted: Boolean(body.consent?.terms_accepted),
         privacy_accepted: Boolean(body.consent?.privacy_accepted),
       },
+    };
+
+    // Validate payload without token first
+    const SignupSchemaNoToken = SignupPayloadSchema.omit({ idToken: true });
+    const parsedNoToken = SignupSchemaNoToken.safeParse(validationPayload);
+    if (!parsedNoToken.success) {
+      const mapped = formatZodError(parsedNoToken.error).map((i) => {
+        let field = i.path;
+        if (
+          field === "givenName" ||
+          field === "familyName" ||
+          field === "displayName"
+        ) {
+          field = "patient.name";
+        } else if (field === "address") {
+          field = "patient.address";
+        } else if (field === "phone") {
+          field = "patient.phone";
+        } else if (field === "consent") {
+          field = "consent.terms_accepted";
+        }
+        return { field, message: i.message };
+      });
+      const response: ValidationErrorResponse = {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Validation failed",
+          details: { field_errors: mapped },
+        },
+      };
+      return NextResponse.json(response, { status: 400 });
+    }
+
+    // If payload is structurally valid but token missing, return 401 as the
+    // contract requires.
+    if (!body.accessToken) {
+      const response: AuthenticationErrorResponse = {
+        success: false,
+        error: {
+          code: "AUTHENTICATION_ERROR",
+          message: "Missing LIFF access token",
+        },
+      };
+      return NextResponse.json(response, { status: 401 });
+    }
+
+    // Now validate the full payload including token
+    const parsed = SignupPayloadSchema.safeParse({
+      idToken: body.accessToken,
+      ...validationPayload,
     });
     if (!parsed.success) {
-      // Map zod paths back to the public contract field names used in tests
       const mapped = formatZodError(parsed.error).map((i) => {
         let field = i.path;
         if (
