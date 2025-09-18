@@ -4,6 +4,7 @@ import { saveUser, findUserByLineId } from "@/server/repo/users";
 import { setUserSession } from "@/lib/redis";
 import { checkRateLimit } from "@/lib/redis";
 import { reportHealthcareError } from "@/lib/sentry";
+import { randomUUID } from "crypto";
 import type {
   LiffSignupRequest,
   LiffSignupResponse,
@@ -14,6 +15,11 @@ import { SignupPayloadSchema } from "@/server/validation";
 import { formatZodError } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
+
+declare global {
+  // keep a tiny, typed in-process rate map during tests when Redis is disabled
+  var __signupRateMap: Map<string, { count: number; expiresAt: number }> | undefined;
+}
 
 // Validation utilities
 // function validateAge(age?: number): string | null {
@@ -168,16 +174,11 @@ export async function POST(req: NextRequest) {
     // Existing manual field validation kept for backward-compat with contract tests
 
     // Simple in-process rate limiter fallback used when Redis is disabled
-    const disableRedis =
-      process.env.NODE_ENV === "test" ||
-      (process.env.DISABLE_REDIS || "").toLowerCase() === "1" ||
-      (process.env.DISABLE_REDIS || "").toLowerCase() === "true";
     // per-process map: identifier -> { count, expiresAt }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rateMap: Map<string, { count: number; expiresAt: number }> =
-      (global as any).__signupRateMap || new Map();
+      globalThis.__signupRateMap || new Map();
     // attach for subsequent requests in same process
-    (global as any).__signupRateMap = rateMap;
+    globalThis.__signupRateMap = rateMap;
 
     // Rate limit: allow 5 requests per 60 seconds per token
     try {
@@ -288,7 +289,7 @@ export async function POST(req: NextRequest) {
       line_user_id: payload.line_user_id,
       registration_complete: payload.registration_complete,
       meta: {
-        request_id: crypto.randomUUID(),
+        request_id: randomUUID(),
         timestamp: new Date().toISOString(),
       },
     };

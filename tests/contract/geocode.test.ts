@@ -56,7 +56,7 @@ describe("Contract: GET /api/geocode", () => {
         (async () => {
           try {
             const { parse } = await import("url");
-            const parsed = parse(req.url || "", true);
+            const _parsed = parse(req.url || "", true);
             const fullUrl = `http://localhost${req.url}`;
             const headers = new Headers();
             for (const [k, v] of Object.entries(req.headers)) {

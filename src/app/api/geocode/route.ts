@@ -108,20 +108,14 @@ export async function POST(req: NextRequest) {
     // Simple test-only global rate limiter: allow 5 requests per 100ms
     const WINDOW_MS = 100;
     const LIMIT = 5;
-    // store timestamps on module-level map
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (globalThis as any).__geocode_timestamps =
-      (globalThis as any).__geocode_timestamps || [];
-    // prune
-    (globalThis as any).__geocode_timestamps = (
-      globalThis as any
-    ).__geocode_timestamps.filter((t: number) => now - t < WINDOW_MS);
-    if ((globalThis as any).__geocode_timestamps.length >= LIMIT) {
-      const retryAfterSeconds =
-        Math.ceil(
-          (WINDOW_MS - (now - (globalThis as any).__geocode_timestamps[0])) /
-            1000
-        ) || 1;
+    // store timestamps on module-level map (typed)
+    type GeoTimestamps = number[];
+    const geoTsKey = "__geocode_timestamps";
+    const g = globalThis as unknown as Record<string, GeoTimestamps | undefined>;
+    g[geoTsKey] = g[geoTsKey] || [];
+    g[geoTsKey] = (g[geoTsKey] || []).filter((t) => now - t < WINDOW_MS);
+    if ((g[geoTsKey] || []).length >= LIMIT) {
+      const retryAfterSeconds = Math.ceil((WINDOW_MS - (now - (g[geoTsKey] || [0])[0])) / 1000) || 1;
       return NextResponse.json(
         {
           success: false,
@@ -139,7 +133,7 @@ export async function POST(req: NextRequest) {
         { status: 429 }
       );
     }
-    (globalThis as any).__geocode_timestamps.push(now);
+    (g[geoTsKey] || []).push(now);
 
     // Special failure simulation
     if (address === "SERVICE_UNAVAILABLE_TEST_ADDRESS") {
@@ -300,7 +294,7 @@ export async function POST(req: NextRequest) {
     const json = NextResponse.json(out);
     json.headers.set("Cache-Control", "no-store");
     return json;
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       {
         success: false,

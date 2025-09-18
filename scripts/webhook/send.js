@@ -10,6 +10,7 @@
  *   node scripts/webhook/send.js --type message --text เมนู --user U1234567890
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 const crypto = require('crypto');
 const fs = require('fs');
 

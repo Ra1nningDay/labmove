@@ -6,6 +6,7 @@ import { geocodeTextServer } from "@/server/lib/geocode";
 import { pushMessage } from "@/server/line";
 import { bookingSummaryFlex, quickReplyMenu } from "@/server/lineMessages";
 import { reportHealthcareError } from "@/lib/sentry";
+import { randomUUID } from "crypto";
 import type {
   LiffBookingRequest,
   LiffBookingResponse,
@@ -17,6 +18,11 @@ import type { BookingProgress } from "@/server/agent/bookingFlow";
 // Zod validation intentionally omitted: use manual validation below
 
 export const dynamic = "force-dynamic";
+
+declare global {
+  // test-time in-process booking timestamp store
+  var __booking_ts: Record<string, number[]> | undefined;
+}
 
 // Validation utilities
 function validateAddress(address: string): string | null {
@@ -34,21 +40,21 @@ function validateAddress(address: string): string | null {
   return null;
 }
 
-function validateCoordinates(lat?: number, lng?: number): string | null {
-  if (lat !== undefined && lng !== undefined) {
-    if (lat < -90 || lat > 90) {
-      return "Invalid latitude (must be between -90 and 90)";
-    }
-    if (lng < -180 || lng > 180) {
-      return "Invalid longitude (must be between -180 and 180)";
-    }
-    // Basic Thailand bounds check
-    if (lat < 5.5 || lat > 20.5 || lng < 97 || lng > 106) {
-      return "Coordinates must be within Thailand";
-    }
-  }
-  return null;
-}
+// function validateCoordinates(lat?: number, lng?: number): string | null {
+//   if (lat !== undefined && lng !== undefined) {
+//     if (lat < -90 || lat > 90) {
+//       return "Invalid latitude (must be between -90 and 90)";
+//     }
+//     if (lng < -180 || lng > 180) {
+//       return "Invalid longitude (must be between -180 and 180)";
+//     }
+//     // Basic Thailand bounds check
+//     if (lat < 5.5 || lat > 20.5 || lng < 97 || lng > 106) {
+//       return "Coordinates must be within Thailand";
+//     }
+//   }
+//   return null;
+// }
 
 function validateBookingDate(scheduledAt: string): string | null {
   const date = new Date(scheduledAt);
@@ -80,7 +86,8 @@ function validateServiceHours(scheduledAt: string): string | null {
   const utcHour = date.getUTCHours();
   const bangkokHour = (utcHour + 7) % 24;
   // Service hours 08:00 - 20:00 Bangkok time
-  if (bangkokHour < 8 || bangkokHour >= 20) return "Requested time is outside service hours";
+  if (bangkokHour < 8 || bangkokHour >= 20)
+    return "Requested time is outside service hours";
   return null;
 }
 
@@ -120,7 +127,7 @@ export async function POST(req: NextRequest) {
           },
         },
         meta: {
-          request_id: crypto.randomUUID(),
+          request_id: randomUUID(),
           timestamp: new Date().toISOString(),
         },
       };
@@ -144,7 +151,7 @@ export async function POST(req: NextRequest) {
           },
         },
         meta: {
-          request_id: crypto.randomUUID(),
+          request_id: randomUUID(),
           timestamp: new Date().toISOString(),
         },
       };
@@ -166,7 +173,7 @@ export async function POST(req: NextRequest) {
           },
         },
         meta: {
-          request_id: crypto.randomUUID(),
+          request_id: randomUUID(),
           timestamp: new Date().toISOString(),
         },
       };
@@ -176,17 +183,13 @@ export async function POST(req: NextRequest) {
     // Validate required fields
     const fieldErrors: Array<{ field: string; message: string }> = [];
 
-    // Validate patient_id format (basic heuristic for contract tests)
-    if (!body.patient_id || typeof body.patient_id !== "string") {
-      fieldErrors.push({
-        field: "patient_id",
-        message: "patient_id is required",
-      });
-    } else if (
-      !body.patient_id.startsWith("patient_") ||
-      body.patient_id.length < 12
-    ) {
-      fieldErrors.push({ field: "patient_id", message: "invalid patient ID" });
+    // Validate patient_id format if provided (optional in LIFF payloads)
+    if (body.patient_id !== undefined && body.patient_id !== null) {
+      if (typeof body.patient_id !== "string") {
+        fieldErrors.push({ field: "patient_id", message: "invalid patient ID" });
+      } else if (!body.patient_id.startsWith("patient_") || body.patient_id.length < 12) {
+        fieldErrors.push({ field: "patient_id", message: "invalid patient ID" });
+      }
     }
 
     if (!body.booking || typeof body.booking !== "object") {
@@ -253,18 +256,23 @@ export async function POST(req: NextRequest) {
 
     // Validate location if provided
     if (body.location) {
-      if (!body.location.address || typeof body.location.address !== "string") {
-        fieldErrors.push({
-          field: "location.address",
-          message: "Location address is required when location is specified",
-        });
-      } else {
-        const addressError = validateAddress(body.location.address);
-        if (addressError) {
+      const hasLat = typeof body.location.lat === "number";
+      const hasLng = typeof body.location.lng === "number";
+      if (!hasLat || !hasLng) {
+        // When coordinates are not both provided, require a usable address string
+        if (!body.location.address || typeof body.location.address !== "string") {
           fieldErrors.push({
             field: "location.address",
-            message: addressError,
+            message: "Location address is required when location is specified",
           });
+        } else {
+          const addressError = validateAddress(body.location.address);
+          if (addressError) {
+            fieldErrors.push({
+              field: "location.address",
+              message: addressError,
+            });
+          }
         }
       }
 
@@ -283,7 +291,7 @@ export async function POST(req: NextRequest) {
         } else if (body.location.lat < 5.5 || body.location.lat > 20.5) {
           fieldErrors.push({
             field: "location.lat",
-              message: "Coordinates must be within Thailand",
+            message: "Coordinates must be within Thailand",
           });
         }
       }
@@ -301,28 +309,30 @@ export async function POST(req: NextRequest) {
         } else if (body.location.lng < 97 || body.location.lng > 106) {
           fieldErrors.push({
             field: "location.lng",
-              message: "Coordinates must be within Thailand (outside service area)",
+            message:
+              "Coordinates must be within Thailand (outside service area)",
           });
         }
       }
 
-        // Service area check (Bangkok-focused). If both lat/lng provided and
-        // coordinates are outside service area, add a field error that will
-        // surface a top-level 'service area' message expected by contract tests.
-        if (
-          typeof body.location.lat === "number" &&
-          typeof body.location.lng === "number"
-        ) {
-          const lat = body.location.lat;
-          const lng = body.location.lng;
-          const inServiceArea = lat >= 12 && lat <= 15 && lng >= 99 && lng <= 101.5;
-          if (!inServiceArea) {
-            fieldErrors.push({
-              field: "location",
-              message: "Coordinates are outside service area",
-            });
-          }
+      // Service area check (Bangkok-focused). If both lat/lng provided and
+      // coordinates are outside service area, add a field error that will
+      // surface a top-level 'service area' message expected by contract tests.
+      if (
+        typeof body.location.lat === "number" &&
+        typeof body.location.lng === "number"
+      ) {
+        const lat = body.location.lat;
+        const lng = body.location.lng;
+        const inServiceArea =
+          lat >= 12 && lat <= 15 && lng >= 99 && lng <= 101.5;
+        if (!inServiceArea) {
+          fieldErrors.push({
+            field: "location",
+            message: "Coordinates are outside service area",
+          });
         }
+      }
     }
 
     if (fieldErrors.length > 0) {
@@ -335,11 +345,13 @@ export async function POST(req: NextRequest) {
         success: false,
         error: {
           code: "VALIDATION_ERROR",
-          message: hasServiceArea ? "Booking is outside service area" : "Validation failed for one or more fields",
+          message: hasServiceArea
+            ? "Booking is outside service area"
+            : "Validation failed for one or more fields",
           details: { field_errors: fieldErrors },
         },
         meta: {
-          request_id: crypto.randomUUID(),
+          request_id: randomUUID(),
           timestamp: new Date().toISOString(),
         },
       };
@@ -370,17 +382,13 @@ export async function POST(req: NextRequest) {
 
     // Test-mode shortcuts for contract tests
     if (process.env.NODE_ENV === "test") {
-  // Simple rate limiter per token: allow 2 requests per 200ms
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (globalThis as any).__booking_ts = (globalThis as any).__booking_ts || {};
+      // Simple rate limiter per token: allow 2 requests per 200ms
+      globalThis.__booking_ts = globalThis.__booking_ts || {};
       const tokenKey = String(body.accessToken || "anonymous");
       const nowTs = Date.now();
-      (globalThis as any).__booking_ts[tokenKey] =
-        (globalThis as any).__booking_ts[tokenKey] || [];
-      (globalThis as any).__booking_ts[tokenKey] = (
-        globalThis as any
-      ).__booking_ts[tokenKey].filter((t: number) => nowTs - t < 1000);
-      if ((globalThis as any).__booking_ts[tokenKey].length >= 2) {
+      globalThis.__booking_ts[tokenKey] = globalThis.__booking_ts[tokenKey] || [];
+      globalThis.__booking_ts[tokenKey] = globalThis.__booking_ts[tokenKey].filter((t: number) => nowTs - t < 1000);
+      if (globalThis.__booking_ts[tokenKey].length >= 2) {
         return NextResponse.json(
           {
             success: false,
@@ -393,7 +401,7 @@ export async function POST(req: NextRequest) {
           { status: 429 }
         );
       }
-      (globalThis as any).__booking_ts[tokenKey].push(nowTs);
+  globalThis.__booking_ts[tokenKey].push(nowTs);
 
       // Conflict simulation
       if (body.patient_id === "patient_has_existing_booking") {
@@ -479,7 +487,7 @@ export async function POST(req: NextRequest) {
             details: { retry_allowed: true },
           },
           meta: {
-            request_id: crypto.randomUUID(),
+            request_id: randomUUID(),
             timestamp: new Date().toISOString(),
           },
         },
@@ -574,7 +582,7 @@ export async function POST(req: NextRequest) {
       success: true,
       data: successData,
       meta: {
-        request_id: crypto.randomUUID(),
+        request_id: randomUUID(),
         timestamp: new Date().toISOString(),
       },
     };
@@ -595,9 +603,9 @@ export async function POST(req: NextRequest) {
           details: { retry_allowed: true },
         },
         meta: {
-          request_id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-        },
+        request_id: randomUUID(),
+        timestamp: new Date().toISOString(),
+      },
       },
       { status: 500 }
     );

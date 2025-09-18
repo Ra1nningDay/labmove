@@ -162,9 +162,7 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get(SIGNATURE_HEADER) || "";
 
     if (process.env.NODE_ENV === "test") {
-      // eslint-disable-next-line no-console
       console.log("WEBHOOK_DEBUG_RAW:", raw.slice(0, 2000));
-      // eslint-disable-next-line no-console
       console.log("WEBHOOK_DEBUG_SIGNATURE_HEADER:", signature);
     }
     // Verify LINE signature (this should not depend on external services)
@@ -172,7 +170,6 @@ export async function POST(req: NextRequest) {
     try {
       signatureValid = verifyLineSignature(raw, signature);
       if (process.env.NODE_ENV === "test") {
-        // eslint-disable-next-line no-console
         console.log("WEBHOOK_DEBUG_SIGNATURE_VALID:", signatureValid);
       }
     } catch (error) {
@@ -589,7 +586,6 @@ export async function POST(req: NextRequest) {
     };
     // Debug when running tests to capture shape
     if (process.env.NODE_ENV === "test") {
-      // eslint-disable-next-line no-console
       console.log("WEBHOOK_RESPONSE_DEBUG:", JSON.stringify(response));
     }
     const json = NextResponse.json(response, { status: 200 });
