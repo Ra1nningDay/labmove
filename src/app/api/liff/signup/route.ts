@@ -18,7 +18,9 @@ export const dynamic = "force-dynamic";
 
 declare global {
   // keep a tiny, typed in-process rate map during tests when Redis is disabled
-  var __signupRateMap: Map<string, { count: number; expiresAt: number }> | undefined;
+  var __signupRateMap:
+    | Map<string, { count: number; expiresAt: number }>
+    | undefined;
 }
 
 // Validation utilities
