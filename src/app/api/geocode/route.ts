@@ -111,11 +111,15 @@ export async function POST(req: NextRequest) {
     // store timestamps on module-level map (typed)
     type GeoTimestamps = number[];
     const geoTsKey = "__geocode_timestamps";
-    const g = globalThis as unknown as Record<string, GeoTimestamps | undefined>;
+    const g = globalThis as unknown as Record<
+      string,
+      GeoTimestamps | undefined
+    >;
     g[geoTsKey] = g[geoTsKey] || [];
     g[geoTsKey] = (g[geoTsKey] || []).filter((t) => now - t < WINDOW_MS);
     if ((g[geoTsKey] || []).length >= LIMIT) {
-      const retryAfterSeconds = Math.ceil((WINDOW_MS - (now - (g[geoTsKey] || [0])[0])) / 1000) || 1;
+      const retryAfterSeconds =
+        Math.ceil((WINDOW_MS - (now - (g[geoTsKey] || [0])[0])) / 1000) || 1;
       return NextResponse.json(
         {
           success: false,
