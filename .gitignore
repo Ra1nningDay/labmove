@@ -6,3 +6,8 @@ node_modules/
 .env.*
 .DS_Store
 .vscode/
+
+# Next.js build artifacts and TS build info
+.next/
+next-env.d.ts
+tsconfig.tsbuildinfo
