@@ -38,7 +38,11 @@ export async function verifyLiffIdToken(
       // Use built-in crypto to derive a deterministic 32-char id
       // so matches the project's expectations (U + 32 chars)
       const { createHash } = await import("crypto");
-      const hash = createHash("sha256").update(String(idToken)).digest("hex").slice(0, 32).toUpperCase();
+      const hash = createHash("sha256")
+        .update(String(idToken))
+        .digest("hex")
+        .slice(0, 32)
+        .toUpperCase();
       return { sub: `U${hash}` };
     } catch {
       // Fallback deterministic id
