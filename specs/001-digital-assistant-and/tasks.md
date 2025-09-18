@@ -3,23 +3,23 @@
 **Input**: Design documents from `/specs/001-digital-assistant-and/`
 **Prerequisites**: plan.md ✓, research.md ✓, data-model.md ✓, contracts/ ✓, quickstart.md ✓
 
-## 🎯 Current Status (Updated: September 16, 2025)
+## 🎯 Current Status (Updated: September 17, 2025)
 
-### Phase 3.1-3.3: Foundation & Tests (MOSTLY COMPLETE - integration suites pending)
+### Phase 3.1-3.3: Foundation & Tests (COMPLETE)
 
 - **Setup & Dependencies**: All environment variables, Redis, Sentry configured
 - **TypeScript Types**: Core entities, LINE API, and API contracts defined
 - **Contract Tests**: LIFF signup, booking, webhook, geocode tests in place (admin confirm pending)
-- **Integration Tests**: Signup, booking, webhook flows covered; LIFF auth/Sheets/Redis/idempotency suites still pending
+- **Integration Tests**: Signup, booking, webhook flows covered; LIFF auth/Sheets/Redis/idempotency suites passing
 - **Test Infrastructure**: Jest configuration with Next.js App Router support working perfectly
 
-### ✅ Phase 3.4: API Implementation (IN PROGRESS - 60% COMPLETE)
+### ✅ Phase 3.4: API Implementation (COMPLETE)
 
 - **LIFF Signup API**: ✅ Fully implemented with validation and error handling
 - **LIFF Booking API**: ✅ Fully implemented with geocoding and structured responses
 - **LINE Webhook API**: Completed with updated handler + contract tests
 - **Geocoding API**: Done (GET/POST handlers live)
-- **Admin APIs**: ⏳ PENDING
+- **Admin APIs**: ✅ Completed (booking confirm)
 
 ### ⏳ Phase 3.5: Frontend & Integration (PENDING)
 
@@ -27,7 +27,7 @@
 - Admin dashboard updates
 - End-to-end testing
 
-**Next Priority**: Backfill missing integration tests (T013-T016)
+**Next Priority**: Phase 3.5 UI work — enhanced LIFF forms (T032–T033) and admin dashboard (T034–T035)
 
 ## Execution Flow (main)
 
@@ -90,10 +90,10 @@
 
 ### Integration Tests [P]
 
-- [x] T013 [P] LIFF token validation test in `tests/integration/liff-auth.test.ts` (planned)
-- [x] T014 [P] Google Sheets integration test in `tests/integration/sheets.test.ts` (planned)
-- [x] T015 [P] Redis caching test in `tests/integration/redis.test.ts` (planned)
-- [x] T016 [P] LINE webhook idempotency test in `tests/integration/webhook-idempotency.test.ts` (planned)
+- [x] T013 [P] LIFF token validation test in `tests/integration/liff-auth.test.ts`
+- [x] T014 [P] Google Sheets integration test in `tests/integration/sheets.test.ts`
+- [x] T015 [P] Redis caching test in `tests/integration/redis.test.ts`
+- [x] T016 [P] LINE webhook idempotency test in `tests/integration/webhook-idempotency.test.ts`
 - [x] T017 [P] Patient registration flow test in `tests/integration/signup-flow.test.ts`
 - [x] T018 [P] Booking creation flow test in `tests/integration/booking-flow.test.ts`
 
@@ -108,10 +108,10 @@
 
 ### LINE Integration
 
-- [ ] T023 Intent router enhancement in `src/server/agent/router.ts` (extend existing)
-- [ ] T024 [P] Signup flow handler in `src/server/agent/signupFlow.ts` (extend existing)
-- [ ] T025 [P] Booking flow handler in `src/server/agent/bookingFlow.ts` (extend existing)
-- [ ] T026 LINE message templates in `src/server/lineMessages.ts` (extend existing)
+- [x] T023 Intent router enhancement in `src/server/agent/router.ts` (extend existing)
+- [x] T024 [P] Signup flow handler in `src/server/agent/signupFlow.ts` (extend existing)
+- [x] T025 [P] Booking flow handler in `src/server/agent/bookingFlow.ts` (extend existing)
+- [x] T026 LINE message templates in `src/server/lineMessages.ts` (extend existing)
 
 ### API Routes
 
@@ -218,7 +218,7 @@ This task list builds upon the existing LabMove codebase:
 
 _GATE: Checked before task execution_
 
-- [ ] All API contracts have corresponding tests (T008-T012 - admin confirm pending)
+- [x] All API contracts have corresponding tests (T008-T012)
 - [x] All entities have type definitions (T005-T007)
 - [x] All tests come before implementation (Phase 3.3 → 3.4)
 - [x] Parallel tasks are independent (different files)

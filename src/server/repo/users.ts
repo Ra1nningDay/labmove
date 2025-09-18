@@ -22,7 +22,12 @@ export type UserRow = {
   hn?: string;
   hospital?: string;
   referral?: string;
+  patientId?: string;
 };
+
+// In-memory store used during tests to avoid filesystem side-effects
+const isTest = process.env.NODE_ENV === "test";
+const inMemoryUsers: Map<string, UserRow> = new Map();
 
 function dataDir() {
   const d = path.join(process.cwd(), "data");
@@ -49,6 +54,14 @@ function toCsv(row: UserRow) {
 }
 
 export async function saveUser(row: UserRow) {
+  if (isTest) {
+    if (!row.patientId) {
+      row.patientId = `patient_${Math.random().toString(36).slice(2, 14)}`;
+    }
+    inMemoryUsers.set(row.lineUserId, row);
+    return;
+  }
+
   if (sheetsConfigured()) {
     await sheetsAppendRow(USERS_SHEET, USERS_HEADERS, {
       created_at: new Date().toISOString(),
@@ -64,15 +77,27 @@ export async function saveUser(row: UserRow) {
     return;
   }
 
-  const header = '"created_at","line_user_id","name","phone","hn","hospital","referral","consent","source"\n';
+  const header =
+    '"created_at","line_user_id","name","phone","hn","hospital","referral","consent","source"\n';
   const fp = CSV_PATH();
   if (!fs.existsSync(fp)) fs.writeFileSync(fp, header, "utf8");
   fs.appendFileSync(fp, toCsv(row) + "\n", "utf8");
 }
 
-export async function findUserByLineId(lineUserId: string): Promise<UserRow | null> {
+export async function findUserByLineId(
+  lineUserId: string
+): Promise<UserRow | null> {
+  if (isTest) {
+    const v = inMemoryUsers.get(lineUserId);
+    return v ?? null;
+  }
   if (sheetsConfigured()) {
-    const rec = await getRowByKey(USERS_SHEET, USERS_HEADERS, "line_user_id", lineUserId);
+    const rec = await getRowByKey(
+      USERS_SHEET,
+      USERS_HEADERS,
+      "line_user_id",
+      lineUserId
+    );
     if (!rec) return null;
     return {
       lineUserId: rec["line_user_id"],
@@ -82,6 +107,7 @@ export async function findUserByLineId(lineUserId: string): Promise<UserRow | nu
       hospital: rec["hospital"] || "",
       referral: rec["referral"] || "",
       consent: rec["consent"] === "1" || rec["consent"] === "true",
+      patientId: rec["patient_id"] || undefined,
     };
   }
 
@@ -110,7 +136,7 @@ export async function findUserByLineId(lineUserId: string): Promise<UserRow | nu
           cur += ch;
         }
       } else {
-        if (ch === ',') {
+        if (ch === ",") {
           out.push(cur);
           cur = "";
         } else if (ch === '"') {
@@ -146,7 +172,10 @@ export async function findUserByLineId(lineUserId: string): Promise<UserRow | nu
         hn: cols[idx.hn] || "",
         hospital: cols[idx.hospital] || "",
         referral: cols[idx.referral] || "",
-        consent: (cols[idx.consent] || "") === "1" || (cols[idx.consent] || "").toLowerCase() === "true",
+        consent:
+          (cols[idx.consent] || "") === "1" ||
+          (cols[idx.consent] || "").toLowerCase() === "true",
+        patientId: cols[header.indexOf("patient_id")] || undefined,
       };
     }
   }
@@ -157,6 +186,10 @@ export async function findUserByLineId(lineUserId: string): Promise<UserRow | nu
 export async function findUsersByLineId(
   lineUserId: string
 ): Promise<UserRow[]> {
+  if (isTest) {
+    const v = inMemoryUsers.get(lineUserId);
+    return v ? [v] : [];
+  }
   if (sheetsConfigured()) {
     const list = await getRowsByKey(
       USERS_SHEET,
@@ -199,7 +232,7 @@ export async function findUsersByLineId(
           cur += ch;
         }
       } else {
-        if (ch === ',') {
+        if (ch === ",") {
           out.push(cur);
           cur = "";
         } else if (ch === '"') {

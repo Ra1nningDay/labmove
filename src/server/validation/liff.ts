@@ -10,7 +10,11 @@ export const SignupPayloadSchema = z
     givenName: NonEmptyString,
     familyName: NonEmptyString,
     phone: ThaiPhone,
-    consent: z.boolean(),
+    address: NonEmptyString,
+    consent: z.object({
+      terms_accepted: z.boolean(),
+      privacy_accepted: z.boolean(),
+    }),
     // Optional household linking
     householdId: z.string().uuid().optional(),
   })
@@ -23,8 +27,8 @@ export const BookingPayloadSchema = z
     idToken: NonEmptyString,
     // booking specifics
     datetime: ISODateTimeString,
-    locationId: NonEmptyString,
-    serviceCode: NonEmptyString,
+    locationId: NonEmptyString.optional(),
+    serviceCode: NonEmptyString.optional(),
     notes: z.string().trim().max(500).optional(),
     // optional member selection for multi-member households
     memberId: NonEmptyString.optional(),
@@ -32,4 +36,3 @@ export const BookingPayloadSchema = z
   .strict();
 
 export type BookingPayload = z.infer<typeof BookingPayloadSchema>;
-

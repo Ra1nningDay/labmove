@@ -5,7 +5,9 @@ import { clearUserMeta } from "@/server/store/session";
 
 const mockHandleChat = jest.fn(async () => [{ type: "text", text: "ok" }]);
 const mockHandleLocation = jest.fn(async () => [{ type: "text", text: "loc" }]);
-const mockForceBookingStep = jest.fn(async () => [{ type: "text", text: "force" }]);
+const mockForceBookingStep = jest.fn(async () => [
+  { type: "text", text: "force" },
+]);
 
 jest.mock("@/server/agent/router", () => ({
   handleChat: (...args: Parameters<typeof mockHandleChat>) =>
@@ -23,8 +25,14 @@ jest.mock("@/server/line", () => {
     verifyLineSignature: jest.fn((raw: string, signature: string) => {
       const secret = process.env.LINE_CHANNEL_SECRET || "";
       if (!secret || !signature) return false;
-      const expected = crypto.createHmac("sha256", secret).update(raw).digest("base64");
-      return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+      const expected = crypto
+        .createHmac("sha256", secret)
+        .update(raw)
+        .digest("base64");
+      return crypto.timingSafeEqual(
+        Buffer.from(expected),
+        Buffer.from(signature)
+      );
     }),
     replyMessage: (...args: Parameters<typeof mockReplyMessage>) =>
       mockReplyMessage(...args),
@@ -107,4 +115,3 @@ describe("Integration: LINE webhook idempotency", () => {
     expect(body2.skipped_events).toBe(1);
   });
 });
-

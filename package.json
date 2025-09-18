@@ -19,7 +19,8 @@
     "richmenu:delete-all": "node scripts/richmenus/index.js delete-all",
     "richmenu:delete-others": "node scripts/richmenus/index.js delete-others",
     "richmenu:set-default": "node scripts/richmenus/index.js set-default",
-    "richmenu:upload": "node scripts/richmenus/index.js upload-image menu"
+    "richmenu:upload": "node scripts/richmenus/index.js upload-image menu",
+    "send:webhook": "node scripts/webhook/send.js"
   },
   "dependencies": {
     "@line/bot-sdk": "^10.2.0",

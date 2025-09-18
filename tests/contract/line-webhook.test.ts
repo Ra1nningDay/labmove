@@ -75,8 +75,14 @@ jest.mock("@/server/line", () => {
     verifyLineSignature: jest.fn((raw: string, signature: string) => {
       const secret = process.env.LINE_CHANNEL_SECRET || "";
       if (!secret || !signature) return false;
-      const expected = crypto.createHmac("sha256", secret).update(raw).digest("base64");
-      return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+      const expected = crypto
+        .createHmac("sha256", secret)
+        .update(raw)
+        .digest("base64");
+      return crypto.timingSafeEqual(
+        Buffer.from(expected),
+        Buffer.from(signature)
+      );
     }),
     replyMessage: (...args: Parameters<typeof mockReplyMessage>) =>
       mockReplyMessage(...args),

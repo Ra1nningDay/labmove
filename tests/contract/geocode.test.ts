@@ -49,7 +49,58 @@ describe("Contract: GET /api/geocode", () => {
       });
     } catch {
       console.log("Expected failure: Next.js app not ready for testing");
-      // This is expected to fail in TDD - we haven't implemented the API yet
+      // Fallback: create a tiny server that delegates /api/geocode to our route handler
+      const { createServer: createFallbackServer } = await import("http");
+      const routeModule = await import("@/app/api/geocode/route");
+      app = createFallbackServer((req, res) => {
+        (async () => {
+          try {
+            const { parse } = await import("url");
+            const parsed = parse(req.url || "", true);
+            const fullUrl = `http://localhost${req.url}`;
+            const headers = new Headers();
+            for (const [k, v] of Object.entries(req.headers)) {
+              if (v) headers.set(k, String(v));
+            }
+
+            const chunks: Uint8Array[] = [];
+            req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+            req.on("end", async () => {
+              const body = Buffer.concat(chunks).toString() || undefined;
+              const { NextRequest } = await import("next/server");
+              const nextReq = new NextRequest(fullUrl, {
+                method: req.method,
+                headers,
+                body,
+              });
+
+              let response: Response;
+              if (req.method === "GET" && routeModule.GET) {
+                response = await routeModule.GET(nextReq);
+              } else if (req.method === "POST" && routeModule.POST) {
+                response = await routeModule.POST(nextReq);
+              } else {
+                response = new Response("Not Found", { status: 404 });
+              }
+
+              const text = await response.text();
+              res.statusCode = response.status;
+              for (const [k, v] of response.headers) {
+                try {
+                  res.setHeader(k, v);
+                } catch {
+                  // ignore
+                }
+              }
+              res.end(text);
+            });
+          } catch (err) {
+            console.error("Fallback server error:", err);
+            res.statusCode = 500;
+            res.end("internal server error");
+          }
+        })();
+      });
     }
   });
 

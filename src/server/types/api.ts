@@ -442,7 +442,11 @@ export interface ValidationErrorResponse extends ApiResponse {
 export interface AuthenticationErrorResponse extends ApiResponse {
   success: false;
   error: {
-    code: "AUTHENTICATION_ERROR" | "AUTHORIZATION_ERROR" | "TOKEN_EXPIRED";
+    code:
+      | "AUTHENTICATION_ERROR"
+      | "AUTHORIZATION_ERROR"
+      | "TOKEN_EXPIRED"
+      | "WEBHOOK_AUTHENTICATION_ERROR";
     message: string;
     details?: {
       token_valid?: boolean;

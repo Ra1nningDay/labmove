@@ -68,7 +68,7 @@ function buildAuthenticationError(message: string, requestId: string) {
   const response: AuthenticationErrorResponse = {
     success: false,
     error: {
-      code: "AUTHENTICATION_ERROR",
+      code: "WEBHOOK_AUTHENTICATION_ERROR",
       message,
     },
     meta: {
@@ -161,10 +161,20 @@ export async function POST(req: NextRequest) {
     const raw = await req.text();
     const signature = req.headers.get(SIGNATURE_HEADER) || "";
 
+    if (process.env.NODE_ENV === "test") {
+      // eslint-disable-next-line no-console
+      console.log("WEBHOOK_DEBUG_RAW:", raw.slice(0, 2000));
+      // eslint-disable-next-line no-console
+      console.log("WEBHOOK_DEBUG_SIGNATURE_HEADER:", signature);
+    }
     // Verify LINE signature (this should not depend on external services)
     let signatureValid = false;
     try {
       signatureValid = verifyLineSignature(raw, signature);
+      if (process.env.NODE_ENV === "test") {
+        // eslint-disable-next-line no-console
+        console.log("WEBHOOK_DEBUG_SIGNATURE_VALID:", signatureValid);
+      }
     } catch (error) {
       console.error("Signature verification failed:", error);
       return buildAuthenticationError(
@@ -577,9 +587,15 @@ export async function POST(req: NextRequest) {
       skipped_events: skipped,
       errors,
     };
-    const json = NextResponse.json(response);
+    // Debug when running tests to capture shape
+    if (process.env.NODE_ENV === "test") {
+      // eslint-disable-next-line no-console
+      console.log("WEBHOOK_RESPONSE_DEBUG:", JSON.stringify(response));
+    }
+    const json = NextResponse.json(response, { status: 200 });
     json.headers.set("X-Request-ID", requestId);
     json.headers.set("Cache-Control", "no-store");
+    json.headers.set("Content-Type", "application/json; charset=utf-8");
     return json;
   } catch (error) {
     await reportHealthcareError(error as Error, {

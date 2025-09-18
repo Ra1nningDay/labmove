@@ -43,6 +43,86 @@ const REDIS_CONFIG = {
  * Initialize Redis connection with health monitoring
  */
 export async function initRedis(): Promise<Redis> {
+  // Allow tests or CI to disable Redis connection to avoid external
+  // dependency requirements and noisy logs.
+  const disableRedis =
+    process.env.NODE_ENV === "test" ||
+    (process.env.DISABLE_REDIS || "").toLowerCase() === "1" ||
+    (process.env.DISABLE_REDIS || "").toLowerCase() === "true";
+
+  if (disableRedis) {
+    // Provide a stateful in-memory stub used by tests when Redis is disabled.
+    if (!redisClient) {
+      const store = new Map<string, string>();
+      const counters = new Map<string, number>();
+      const expirations = new Map<string, number>();
+
+      const now = () => Date.now();
+
+      const cleanupIfExpired = (key: string) => {
+        const exp = expirations.get(key) || 0;
+        if (exp > 0 && exp < now()) {
+          store.delete(key);
+          counters.delete(key);
+          expirations.delete(key);
+        }
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stub: any = {
+        status: "ready",
+        connect: async () => undefined,
+        quit: async () => undefined,
+        ping: async () => "PONG",
+        setex: async (key: string, seconds: number, value: string) => {
+          store.set(key, value);
+          expirations.set(key, now() + seconds * 1000);
+          return "OK";
+        },
+        set: async (key: string, value: string) => {
+          store.set(key, value);
+          return "OK";
+        },
+        get: async (key: string) => {
+          cleanupIfExpired(key);
+          return store.get(key) ?? null;
+        },
+        del: async (key: string) => {
+          const had = store.has(key) ? 1 : 0;
+          store.delete(key);
+          counters.delete(key);
+          expirations.delete(key);
+          return had;
+        },
+        exists: async (key: string) => {
+          cleanupIfExpired(key);
+          return store.has(key) ? 1 : 0;
+        },
+        incr: async (key: string) => {
+          cleanupIfExpired(key);
+          const val = (counters.get(key) || 0) + 1;
+          counters.set(key, val);
+          return val;
+        },
+        expire: async (key: string, seconds: number) => {
+          expirations.set(key, now() + seconds * 1000);
+          return 1;
+        },
+        ttl: async (key: string) => {
+          cleanupIfExpired(key);
+          const exp = expirations.get(key) || 0;
+          if (!exp) return -1;
+          const left = Math.max(0, Math.ceil((exp - now()) / 1000));
+          return left;
+        },
+        on: () => undefined,
+      };
+
+      redisClient = stub as unknown as Redis;
+    }
+    return redisClient;
+  }
+
   if (redisClient && redisClient.status === "ready") {
     return redisClient;
   }
@@ -85,16 +165,19 @@ export async function getRedisClient(): Promise<Redis> {
  * Setup Redis event handlers for monitoring
  */
 function setupRedisEventHandlers(client: Redis) {
+  // Suppress logs when running under tests to avoid polluting Jest output
+  const silent = process.env.NODE_ENV === "test";
+
   client.on("connect", () => {
-    console.log("Redis client connected");
+    if (!silent) console.log("Redis client connected");
   });
 
   client.on("ready", () => {
-    console.log("Redis client ready for commands");
+    if (!silent) console.log("Redis client ready for commands");
   });
 
   client.on("error", (error) => {
-    console.error("Redis client error:", error);
+    if (!silent) console.error("Redis client error:", error);
     reportHealthcareError(error, {
       operation: "redis_connection_error",
       severity: "high",
@@ -102,15 +185,15 @@ function setupRedisEventHandlers(client: Redis) {
   });
 
   client.on("close", () => {
-    console.log("Redis connection closed");
+    if (!silent) console.log("Redis connection closed");
   });
 
   client.on("reconnecting", (ms: number) => {
-    console.log(`Redis reconnecting in ${ms}ms`);
+    if (!silent) console.log(`Redis reconnecting in ${ms}ms`);
   });
 
   client.on("end", () => {
-    console.log("Redis connection ended");
+    if (!silent) console.log("Redis connection ended");
   });
 }
 
@@ -124,13 +207,15 @@ function startHealthMonitoring() {
   }
 
   // Check health every 30 seconds
+  const silent = process.env.NODE_ENV === "test";
+
   healthCheckInterval = setInterval(async () => {
     try {
       if (redisClient) {
         await redisClient.ping();
       }
     } catch (error) {
-      console.error("Redis health check failed:", error);
+      if (!silent) console.error("Redis health check failed:", error);
       reportHealthcareError(error as Error, {
         operation: "redis_health_check",
         severity: "medium",

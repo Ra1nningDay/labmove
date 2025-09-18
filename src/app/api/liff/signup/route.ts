@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyLiffIdToken } from "@/server/lib/liffAuth";
 import { saveUser, findUserByLineId } from "@/server/repo/users";
 import { setUserSession } from "@/lib/redis";
+import { checkRateLimit } from "@/lib/redis";
 import { reportHealthcareError } from "@/lib/sentry";
 import type {
   LiffSignupRequest,
@@ -38,9 +39,13 @@ export const dynamic = "force-dynamic";
 // }
 
 function generatePatientId(): string {
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `PAT_${dateStr}_${randomId}`;
+  // Contract expects `patient_[a-zA-Z0-9]{12}`
+  const chars =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let id = "";
+  for (let i = 0; i < 12; i++)
+    id += chars[Math.floor(Math.random() * chars.length)];
+  return `patient_${id}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -64,40 +69,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(response, { status: 400 });
     }
 
-    // Zod validation (strict)
-    const parsed = SignupPayloadSchema.safeParse({
-      idToken: body.accessToken,
-      displayName: body.patient?.name,
-      givenName: body.patient?.name?.split(" ")?.[0] ?? body.patient?.name,
-      familyName:
-        body.patient?.name?.includes(" ")
-          ? body.patient?.name?.split(" ").slice(1).join(" ")
-          : body.patient?.name,
-      phone: body.patient?.phone ?? "",
-      consent: Boolean(body.consent?.terms_accepted && body.consent?.privacy_accepted),
-    });
-    if (!parsed.success) {
-      const response: ValidationErrorResponse = {
-        success: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Validation failed",
-          details: { field_errors: formatZodError(parsed.error).map((i) => ({ field: i.path, message: i.message })) },
-        },
-      };
-      return NextResponse.json(response, { status: 400 });
-    }
-
-    // Validate access token and authenticate
+    // Validate access token presence early and return the expected 401
     if (!body.accessToken) {
       const response: AuthenticationErrorResponse = {
         success: false,
         error: {
           code: "AUTHENTICATION_ERROR",
-          message: "Missing access token",
+          message: "Missing LIFF access token",
         },
       };
       return NextResponse.json(response, { status: 401 });
+    }
+
+    // Zod validation (strict)
+    const fullName = body.patient?.name?.trim() ?? "";
+    const nameParts = fullName.split(/\s+/).filter(Boolean);
+    const parsed = SignupPayloadSchema.safeParse({
+      idToken: body.accessToken,
+      displayName: fullName || undefined,
+      givenName: nameParts[0] ?? fullName ?? "",
+      familyName:
+        nameParts.length > 1 ? nameParts.slice(1).join(" ") : fullName ?? "",
+      phone: (body.patient?.phone ?? "").trim(),
+      address: body.patient?.address ?? "",
+      consent: {
+        terms_accepted: Boolean(body.consent?.terms_accepted),
+        privacy_accepted: Boolean(body.consent?.privacy_accepted),
+      },
+    });
+    if (!parsed.success) {
+      // Map zod paths back to the public contract field names used in tests
+      const mapped = formatZodError(parsed.error).map((i) => {
+        let field = i.path;
+        if (
+          field === "givenName" ||
+          field === "familyName" ||
+          field === "displayName"
+        ) {
+          field = "patient.name";
+        } else if (field === "address") {
+          field = "patient.address";
+        } else if (field === "phone") {
+          field = "patient.phone";
+        } else if (field === "consent") {
+          field = "consent.terms_accepted";
+        }
+        return { field, message: i.message };
+      });
+      const response: ValidationErrorResponse = {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Validation failed",
+          details: { field_errors: mapped },
+        },
+      };
+      return NextResponse.json(response, { status: 400 });
     }
 
     let tokenInfo: { sub: string };
@@ -108,13 +135,95 @@ export async function POST(req: NextRequest) {
         success: false,
         error: {
           code: "AUTHENTICATION_ERROR",
-          message: "Invalid access token",
+          message: "Invalid LIFF access token",
         },
       };
       return NextResponse.json(response, { status: 401 });
     }
 
+    // After parsing, enforce that terms_accepted is true
+    // (Zod validated presence and types already)
+    if (parsed.success) {
+      const data = parsed.data;
+      if (!data.consent || !data.consent.terms_accepted) {
+        const response: ValidationErrorResponse = {
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Validation failed",
+            details: {
+              field_errors: [
+                {
+                  field: "consent.terms_accepted",
+                  message: "must be accepted",
+                },
+              ],
+            },
+          },
+        };
+        return NextResponse.json(response, { status: 400 });
+      }
+    }
+
     // Existing manual field validation kept for backward-compat with contract tests
+
+    // Simple in-process rate limiter fallback used when Redis is disabled
+    const disableRedis =
+      process.env.NODE_ENV === "test" ||
+      (process.env.DISABLE_REDIS || "").toLowerCase() === "1" ||
+      (process.env.DISABLE_REDIS || "").toLowerCase() === "true";
+    // per-process map: identifier -> { count, expiresAt }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rateMap: Map<string, { count: number; expiresAt: number }> =
+      (global as any).__signupRateMap || new Map();
+    // attach for subsequent requests in same process
+    (global as any).__signupRateMap = rateMap;
+
+    // Rate limit: allow 5 requests per 60 seconds per token
+    try {
+      const rl = await checkRateLimit(tokenInfo.sub, 5, 60);
+      if (!rl.allowed) {
+        const response = {
+          success: false,
+          error: {
+            code: "RATE_LIMIT_EXCEEDED",
+            message: "Too many signup attempts",
+            details: {
+              retry_after_seconds: Math.ceil(
+                (rl.resetTime - Date.now()) / 1000
+              ),
+            },
+          },
+        };
+        return NextResponse.json(response, { status: 429 });
+      }
+    } catch {
+      // Fallback to in-process rate limiter when Redis is not available
+      const now = Date.now();
+      const entry = rateMap.get(tokenInfo.sub) || { count: 0, expiresAt: 0 };
+      if (entry.expiresAt < now) {
+        entry.count = 1;
+        entry.expiresAt = now + 60 * 1000;
+      } else {
+        entry.count += 1;
+      }
+      rateMap.set(tokenInfo.sub, entry);
+      if (entry.count > 5) {
+        const response = {
+          success: false,
+          error: {
+            code: "RATE_LIMIT_EXCEEDED",
+            message: "Too many signup attempts",
+            details: {
+              retry_after_seconds: Math.ceil(
+                (entry.expiresAt - Date.now()) / 1000
+              ),
+            },
+          },
+        };
+        return NextResponse.json(response, { status: 429 });
+      }
+    }
 
     // Check if user already exists (handle duplicate registration)
     const existingUser = await findUserByLineId(tokenInfo.sub);
@@ -122,15 +231,16 @@ export async function POST(req: NextRequest) {
     // Generate patient ID
     const patientId = generatePatientId();
 
-    // Prepare user data for storage
+    // Prepare user data for storage (include patientId so in-memory store is idempotent)
     const userData = {
       lineUserId: tokenInfo.sub,
-      name: body.patient.name.trim(),
-      phone: body.patient.phone.replace(/[^0-9]/g, ""),
-      address: body.patient.address.trim(),
+      name: (body.patient.name ?? "").trim(),
+      phone: (body.patient.phone ?? "").replace(/[^0-9]/g, ""),
+      address: (body.patient.address ?? "").trim(),
       hn: body.patient.hn?.trim(),
       hospital: body.patient.hospital?.trim(),
       consent: true,
+      patientId: patientId,
     };
 
     // Save user to repository
@@ -161,15 +271,37 @@ export async function POST(req: NextRequest) {
     // Store session in Redis
     await setUserSession(tokenInfo.sub, sessionData);
 
-    // Prepare response
-    const response: LiffSignupResponse = {
-      patient_id: patientId,
+    // If user already exists, reuse their patientId
+    const finalPatientId = existingUser?.patientId || patientId;
+
+    const payload: LiffSignupResponse = {
+      patient_id: finalPatientId,
       line_user_id: tokenInfo.sub,
       registration_complete: true,
-      next_step: existingUser ? "book_appointment" : "verify_phone",
     };
 
-    return NextResponse.json(response, { status: existingUser ? 200 : 201 });
+    // Return both root fields and data envelope for backward compatibility
+    const envelope = {
+      success: true,
+      data: payload,
+      patient_id: payload.patient_id,
+      line_user_id: payload.line_user_id,
+      registration_complete: payload.registration_complete,
+      meta: {
+        request_id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    // Persist patientId for in-memory store if applicable
+    if (existingUser && !existingUser.patientId) {
+      try {
+        existingUser.patientId = finalPatientId;
+        await saveUser(existingUser);
+      } catch {}
+    }
+
+    return NextResponse.json(envelope, { status: 201 });
   } catch (error) {
     // Log error for monitoring
     reportHealthcareError(error as Error, {

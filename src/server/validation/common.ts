@@ -10,7 +10,7 @@ export const ISODateTimeString = z
 export const ThaiPhone = z
   .string()
   .trim()
-  .regex(/^(\+66|0)\d{8,9}$/u, { message: "Invalid Thai phone" });
+  .regex(/^(\+66|0)\d{8,9}$/u, { message: "Invalid Thai phone number" });
 
 export const NonEmptyString = z.string().trim().min(1);
 
@@ -29,4 +29,3 @@ export function formatZodError(e: unknown): ValidationErrorItem[] {
   }
   return [{ path: "_", message: "Validation failed" }];
 }
-

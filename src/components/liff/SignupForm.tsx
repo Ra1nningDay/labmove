@@ -8,6 +8,7 @@ type SignupFormData = {
   consent: boolean;
   name: string;
   phone: string;
+  address?: string;
   hn: string;
   hospital: string;
   referral: string;
@@ -40,6 +41,7 @@ export default function SignupForm({
       consent: false,
       name: "",
       phone: "",
+      address: "",
       hn: "",
       hospital: "",
       referral: "",
@@ -55,13 +57,34 @@ export default function SignupForm({
     }
     setSubmitting(true);
     try {
+      // Build payload according to LiffSignupRequest contract
+      const payload = {
+        accessToken: idToken,
+        patient: {
+          name: data.name.trim(),
+          phone: data.phone.replace(/[^0-9]/g, ""),
+          address: (data.address || "").trim(),
+          hn: data.hn?.trim() || undefined,
+          hospital: data.hospital?.trim() || undefined,
+        },
+        consent: {
+          terms_accepted: !!data.consent,
+          privacy_accepted: !!data.consent,
+        },
+        preferences: {
+          notifications_enabled: true,
+          preferred_contact_method: "line" as const,
+        },
+      };
+
       const res = await fetch("/api/liff/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          // Authorization header is optional for server, keep for future use
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       setSuccess(true);
@@ -70,6 +93,7 @@ export default function SignupForm({
         consent: false,
         name: "",
         phone: "",
+        address: "",
         hn: "",
         hospital: "",
         referral: "",
@@ -195,6 +219,21 @@ export default function SignupForm({
                     {errors.phone.message}
                   </p>
                 )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">
+                  ที่อยู่สำหรับติดต่อ (สามารถเว้นว่างและกรอกภายหลัง)
+                </label>
+                <input
+                  {...register("address")}
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#46688b] focus:outline-none focus:ring-2 focus:ring-[#46688b]/30"
+                  placeholder="เช่น 123/45 ถนนสุขภาพ แขวงสุขใจ เขตสุขภาพ กรุงเทพฯ"
+                  autoComplete="street-address"
+                />
+                <p className="mt-1 text-[11px] text-gray-500">
+                  ใช้สำหรับการนัดหมายถึงบ้าน หากไม่สะดวกกรอกตอนนี้ สามารถเพิ่มภายหลังได้
+                </p>
               </div>
             </div>
           </fieldset>
